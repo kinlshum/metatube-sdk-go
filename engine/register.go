@@ -27,6 +27,7 @@ import (
 	_ "github.com/metatube-community/metatube-sdk-go/provider/jav321"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/javbus"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/javfree"
+	_ "github.com/metatube-community/metatube-sdk-go/provider/javlibrary"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/kin8tengoku"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/mdcng"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/mgstage"

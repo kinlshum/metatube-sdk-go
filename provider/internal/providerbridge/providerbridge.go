@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type Provider struct {
 	*scraper.Scraper
 	bridgeURL string
 	client    *http.Client
+	genericID bool
 }
 
 func New(name, homepage string, priority float64) *Provider {
@@ -40,16 +42,35 @@ func New(name, homepage string, priority float64) *Provider {
 	}
 }
 
-func (p *Provider) NormalizeMovieID(id string) string { return fc2util.ParseNumber(id) }
+func NewGeneric(name, homepage string, priority float64) *Provider {
+	p := New(name, homepage, priority)
+	p.genericID = true
+	return p
+}
 
-func (p *Provider) NormalizeMovieKeyword(keyword string) string { return fc2util.ParseNumber(keyword) }
+func (p *Provider) NormalizeMovieID(id string) string {
+	if !p.genericID {
+		return fc2util.ParseNumber(id)
+	}
+	for _, pattern := range []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(?:^|[^a-z0-9])([a-z]{1,10}\d{0,4})[-_ ](\d{2,6})(?:[^a-z0-9]|$)`),
+		regexp.MustCompile(`(?i)(?:^|[^a-z0-9])(\d{2,6}[a-z]{2,10})[-_ ](\d{2,6})(?:[^a-z0-9]|$)`),
+	} {
+		if match := pattern.FindStringSubmatch(id); len(match) == 3 {
+			return strings.ToUpper(match[1] + "-" + match[2])
+		}
+	}
+	return ""
+}
+
+func (p *Provider) NormalizeMovieKeyword(keyword string) string { return p.NormalizeMovieID(keyword) }
 
 func (p *Provider) ParseMovieIDFromURL(rawURL string) (string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return "", err
 	}
-	id := fc2util.ParseNumber(u.Path)
+	id := p.NormalizeMovieID(u.Path)
 	if id == "" {
 		return "", provider.ErrInvalidURL
 	}
