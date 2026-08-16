@@ -85,6 +85,86 @@ def flare_get(url):
     return solution.get("url", url), solution.get("response", "")
 
 
+def xslist_search(keyword):
+    _, document = flare_get(
+        "https://xslist.org/search?query=" + urllib.parse.quote(keyword) + "&lg=zh"
+    )
+    results = []
+    for card in re.findall(r'<li[^>]*>(.*?)</li>', document, re.I | re.S):
+        link = re.search(
+            r'<h3>\s*<a[^>]+title=["\']([^"\']+)["\'][^>]+href=["\']([^"\']+/model/(\d+)\.html)',
+            card, re.I | re.S,
+        )
+        if not link:
+            continue
+        names = [value.strip() for value in html.unescape(link.group(1)).split(" - ") if value.strip()]
+        image = re.search(r'<img[^>]+src=["\']([^"\']+)', card, re.I)
+        results.append({
+            "id": link.group(3), "name": names[-1] if names else keyword,
+            "provider": "XsList", "homepage": html.unescape(link.group(2)),
+            "aliases": names[:-1],
+            "images": [html.unescape(image.group(1))]
+            if image and "anonymous" not in image.group(1) else [],
+        })
+    if not results:
+        raise LookupError("XsList returned no matching actor")
+    return results
+
+
+def xslist_actor(actor_id):
+    homepage, document = flare_get(f"https://xslist.org/zh/model/{actor_id}.html")
+    name_match = re.search(
+        r'<span[^>]+itemprop=["\']name["\'][^>]*>(.*?)</span>',
+        document, re.I | re.S,
+    )
+    if not name_match:
+        raise LookupError("XsList returned no actor name")
+    name = strip_markup(name_match.group(1))
+    heading = re.search(r'<h1[^>]*>(.*?)</h1>', document, re.I | re.S)
+    aliases = []
+    if heading:
+        aliases = [value.strip() for value in re.findall(
+            r'\(([^)]+)\)', strip_markup(heading.group(1))
+        ) if value.strip()]
+    gallery = element_body(document, "gallery")
+    images = list(dict.fromkeys(html.unescape(value) for value in re.findall(
+        r'<(?:a|img)[^>]+(?:href|src)=["\']([^"\']+)["\'][^>]*>',
+        gallery, re.I,
+    ) if "anonymous" not in value and re.search(
+        r'\.(?:jpe?g|png|webp)(?:\?|$)', value, re.I
+    )))
+    profile = re.search(
+        r'<meta[^>]+(?:name|property)=["\'](?:image|og:image)["\'][^>]+'
+        r'content=["\']([^"\']+)', document, re.I,
+    )
+    if profile and "anonymous" not in profile.group(1):
+        images.insert(0, html.unescape(profile.group(1)))
+    images = list(dict.fromkeys(images))
+    details_match = re.search(
+        r'<h2[^>]*>.*?个人资料.*?</h2>\s*<p[^>]*>(.*?)</p>',
+        document, re.I | re.S,
+    )
+    details = strip_markup(details_match.group(1)) if details_match else ""
+
+    def field(label):
+        match = re.search(
+            rf'{label}\s*:\s*(.*?)(?=\s+(?:出生|三围|罩杯|出道日期|星座|血型|身高|国籍)\s*:|$)',
+            details,
+        )
+        return match.group(1).strip() if match else ""
+
+    height_match = re.search(r'身高\s*:\s*(\d+)', details)
+    return {
+        "id": actor_id, "name": name, "provider": "XsList", "homepage": homepage,
+        "summary": "", "hobby": "", "skill": "", "blood_type": field("血型"),
+        "cup_size": field("罩杯").replace("Cup", "").strip(),
+        "measurements": field("三围").replace(" ", ""),
+        "nationality": field("国籍"),
+        "height": int(height_match.group(1)) if height_match else 0,
+        "aliases": aliases, "images": images,
+    }
+
+
 def javlibrary(code):
     search_url = (
         "https://www.javlibrary.com/ja/vl_searchbyid.php?keyword="
@@ -510,6 +590,26 @@ def mdcng(number):
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        actor_search = re.fullmatch(r"/v1/providers/XsList/actors\?q=(.*)", self.path)
+        actor_info = re.fullmatch(r"/v1/providers/XsList/actors/(\d+)", self.path)
+        if actor_search or actor_info:
+            try:
+                result = (xslist_search(urllib.parse.unquote_plus(actor_search.group(1)))
+                          if actor_search else xslist_actor(actor_info.group(1)))
+                body = json.dumps(result, ensure_ascii=False).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as exc:
+                body = json.dumps({"error": str(exc)}, ensure_ascii=False).encode()
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            return
         match = re.fullmatch(r"/v1/providers/(FC2CMADB|MDC-NG|fc2hub|JavLibrary|JavDB)/movies/(.+)", self.path)
         if not match:
             self.send_error(404)

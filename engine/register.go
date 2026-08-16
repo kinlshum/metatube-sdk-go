@@ -38,4 +38,5 @@ import (
 	_ "github.com/metatube-community/metatube-sdk-go/provider/pcolle"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/sod"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/tokyo-hot"
+	_ "github.com/metatube-community/metatube-sdk-go/provider/xslist"
 )
