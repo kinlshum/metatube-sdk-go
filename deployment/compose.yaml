@@ -1,0 +1,93 @@
+name: metatube
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: metatube-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: metatube
+      POSTGRES_USER: metatube
+      POSTGRES_PASSWORD: metatube
+    volumes:
+      - /mnt/user/appdata/metatube/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metatube -d metatube"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - metatube_internal
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: metatube-flaresolverr
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: info
+      TZ: America/New_York
+    ports:
+      - "8191:8191"
+    networks:
+      - metatube_internal
+
+  provider-bridge:
+    image: kinlshum/metatube-provider-bridge:local
+    build:
+      context: ./provider-bridge
+    container_name: metatube-provider-bridge
+    restart: unless-stopped
+    environment:
+      FLARE_URL: http://flaresolverr:8191/v1
+      MDC_URL: http://192.168.10.170:9208
+      HOST_QUERY_ROOT: /host-downloads/.metatube-provider
+      MDC_QUERY_ROOT: /downloads_kraken/.metatube-provider
+    volumes:
+      - /mnt/user/downloads:/host-downloads
+    depends_on:
+      - flaresolverr
+    networks:
+      - metatube_internal
+
+  metatube:
+    image: kinlshum/metatube-server-providers:local
+    build:
+      context: https://github.com/kinlshum/metatube-sdk-go.git#codex/mdcng-fc2cmadb-providers
+    container_name: metatube
+    restart: unless-stopped
+    environment:
+      GIN_MODE: release
+      PORT: 8080
+      TOKEN: ${METATUBE_TOKEN:-}
+      DSN: postgres://metatube:metatube@postgres:5432/metatube?sslmode=disable
+      DB_AUTO_MIGRATE: "1"
+      DB_PREPARED_STMT: "1"
+      METATUBE_PROVIDER_BRIDGE_URL: http://provider-bridge:9210
+      MT_MOVIE_PROVIDER_AVE__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_DUGA__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_FALENO__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_FANZA__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_FC2PPVDB__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_MGS__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_PCOLLE__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_SOD__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_THEPORNDBACTOR__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_THEPORNDBMOVIE__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_THEPORNDBSCENE__PRIORITY: "0"
+    volumes:
+      - /mnt/cache_nvme_apps/appdata/metatube-server-charleshuang233:/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      provider-bridge:
+        condition: service_started
+    networks:
+      metatube_internal:
+      br0:
+        ipv4_address: 192.168.10.166
+
+networks:
+  metatube_internal:
+    name: metatube_internal
+  br0:
+    external: true
