@@ -154,6 +154,9 @@ def xslist_actor(actor_id):
         return match.group(1).strip() if match else ""
 
     height_match = re.search(r'身高\s*:\s*(\d+)', details)
+    birthday_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', field("出生"))
+    birthday = (f"{birthday_match.group(1)}-{int(birthday_match.group(2)):02d}-"
+                f"{int(birthday_match.group(3)):02d}T00:00:00Z") if birthday_match else None
     return {
         "id": actor_id, "name": name, "provider": "XsList", "homepage": homepage,
         "summary": "", "hobby": "", "skill": "", "blood_type": field("血型"),
@@ -161,7 +164,7 @@ def xslist_actor(actor_id):
         "measurements": field("三围").replace(" ", ""),
         "nationality": field("国籍"),
         "height": int(height_match.group(1)) if height_match else 0,
-        "aliases": aliases, "images": images,
+        "aliases": aliases, "images": images, "birthday": birthday,
     }
 
 
