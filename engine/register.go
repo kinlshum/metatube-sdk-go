@@ -32,6 +32,7 @@ import (
 	_ "github.com/metatube-community/metatube-sdk-go/provider/kin8tengoku"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/mdcng"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/mgstage"
+	_ "github.com/metatube-community/metatube-sdk-go/provider/minnano-av"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/muramura"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/mywife"
 	_ "github.com/metatube-community/metatube-sdk-go/provider/pacopacomama"

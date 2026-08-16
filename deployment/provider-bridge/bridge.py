@@ -168,6 +168,114 @@ def xslist_actor(actor_id):
     }
 
 
+def minnano_actor_from_document(actor_id, homepage, document):
+    heading = re.search(r'<h1[^>]*>(.*?)</h1>', document, re.I | re.S)
+    if not heading:
+        raise LookupError("Minnano-AV returned no actor name")
+    name_match = re.match(r'\s*([^<]+)', heading.group(1))
+    name = strip_markup(name_match.group(1)) if name_match else ""
+    if not name:
+        raise LookupError("Minnano-AV returned no actor name")
+    alias_match = re.search(r'<span[^>]*>(.*?)</span>', heading.group(1), re.I | re.S)
+    aliases = [value.strip() for value in re.split(
+        r'\s*/\s*', strip_markup(alias_match.group(1)) if alias_match else ""
+    ) if value.strip() and value.strip() != name]
+    profile_match = re.search(
+        r'<div[^>]+class=["\'][^"\']*act-profile[^"\']*["\'][^>]*>(.*?)</div>',
+        document, re.I | re.S,
+    )
+    profile = profile_match.group(1) if profile_match else ""
+
+    def field(label):
+        match = re.search(
+            rf'<span[^>]*>\s*{re.escape(label)}\s*</span>\s*<p[^>]*>(.*?)</p>',
+            profile, re.I | re.S,
+        )
+        return strip_markup(match.group(1)) if match else ""
+
+    image_match = re.search(
+        r'<div[^>]+class=["\'][^"\']*act-area[^"\']*["\'][^>]*>.*?'
+        r'<img[^>]+src=["\']([^"\']+)', document, re.I | re.S,
+    )
+    image = urllib.parse.urljoin(homepage, html.unescape(image_match.group(1))) if image_match else ""
+    size = field("サイズ")
+    height_match = re.search(r'\bT\s*(\d+)', size, re.I)
+    bust_match = re.search(r'\bB\s*(\d+)', size, re.I)
+    waist_match = re.search(r'\bW\s*(\d+)', size, re.I)
+    hip_match = re.search(r'\bH\s*(\d+)', size, re.I)
+    cup_match = re.search(r'([A-Z])\s*カップ', size, re.I)
+    measurements = ""
+    if bust_match or waist_match or hip_match:
+        measurements = "/".join(value for value in (
+            f"B{bust_match.group(1)}" if bust_match else "",
+            f"W{waist_match.group(1)}" if waist_match else "",
+            f"H{hip_match.group(1)}" if hip_match else "",
+        ) if value)
+    birthday_match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', field("生年月日"))
+    birthday = (f"{birthday_match.group(1)}-{int(birthday_match.group(2)):02d}-"
+                f"{int(birthday_match.group(3)):02d}T00:00:00Z") if birthday_match else None
+    summary_match = re.search(
+        r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)',
+        document, re.I,
+    )
+    return {
+        "id": actor_id, "name": name, "provider": "Minnano-AV",
+        "homepage": homepage,
+        "summary": html.unescape(summary_match.group(1)) if summary_match else "",
+        "hobby": field("趣味・特技"), "skill": "",
+        "blood_type": field("血液型").replace("型", "").strip(),
+        "cup_size": cup_match.group(1).upper() if cup_match else "",
+        "measurements": measurements, "nationality": "日本",
+        "height": int(height_match.group(1)) if height_match else 0,
+        "aliases": aliases, "images": [image] if image else [],
+        "birthday": birthday,
+    }
+
+
+def minnano_actor(actor_id):
+    homepage, document = flare_get(
+        f"https://www.minnano-av.com/actress{actor_id}.html"
+    )
+    return minnano_actor_from_document(actor_id, homepage, document)
+
+
+def minnano_search(keyword):
+    search_url = (
+        "https://www.minnano-av.com/search_result.php?search_scope=actress&search_word="
+        + urllib.parse.quote(keyword) + "&search=Go"
+    )
+    homepage, document = flare_get(search_url)
+    direct = re.search(r'/actress(\d+)\.html(?:[?#]|$)', homepage)
+    if direct:
+        info = minnano_actor_from_document(direct.group(1), homepage, document)
+        return [{key: info[key] for key in (
+            "id", "name", "provider", "homepage", "aliases", "images"
+        )}]
+    results = []
+    seen = set()
+    for actor_id, label in re.findall(
+        r'<a[^>]+href=["\'](?:https?://www\.minnano-av\.com/)?actress(\d+)\.html["\'][^>]*>(.*?)</a>',
+        document, re.I | re.S,
+    ):
+        name = strip_markup(label)
+        if actor_id in seen or not name:
+            continue
+        seen.add(actor_id)
+        image_match = re.search(
+            rf'<a[^>]+href=["\'][^"\']*actress{actor_id}\.html["\'][^>]*>.*?'
+            r'<img[^>]+(?:data-src|src)=["\']([^"\']+)', document, re.I | re.S,
+        )
+        image = urllib.parse.urljoin(homepage, html.unescape(image_match.group(1))) if image_match else ""
+        results.append({
+            "id": actor_id, "name": name, "provider": "Minnano-AV",
+            "homepage": f"https://www.minnano-av.com/actress{actor_id}.html",
+            "aliases": [], "images": [image] if image else [],
+        })
+    if not results:
+        raise LookupError("Minnano-AV returned no matching actor")
+    return results
+
+
 def javlibrary(code):
     search_url = (
         "https://www.javlibrary.com/ja/vl_searchbyid.php?keyword="
@@ -593,12 +701,23 @@ def mdcng(number):
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        actor_search = re.fullmatch(r"/v1/providers/XsList/actors\?q=(.*)", self.path)
-        actor_info = re.fullmatch(r"/v1/providers/XsList/actors/(\d+)", self.path)
+        actor_search = re.fullmatch(
+            r"/v1/providers/(XsList|Minnano-AV)/actors\?q=(.*)", self.path
+        )
+        actor_info = re.fullmatch(
+            r"/v1/providers/(XsList|Minnano-AV)/actors/(\d+)", self.path
+        )
         if actor_search or actor_info:
             try:
-                result = (xslist_search(urllib.parse.unquote_plus(actor_search.group(1)))
-                          if actor_search else xslist_actor(actor_info.group(1)))
+                if actor_search:
+                    provider_name, keyword = actor_search.groups()
+                    result = (xslist_search(urllib.parse.unquote_plus(keyword))
+                              if provider_name == "XsList"
+                              else minnano_search(urllib.parse.unquote_plus(keyword)))
+                else:
+                    provider_name, actor_id = actor_info.groups()
+                    result = (xslist_actor(actor_id) if provider_name == "XsList"
+                              else minnano_actor(actor_id))
                 body = json.dumps(result, ensure_ascii=False).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
