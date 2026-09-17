@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"net/url"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -37,20 +39,30 @@ type RequestMetric struct {
 	LatencyMS float64   `json:"latency_ms"`
 }
 
+type ProviderClientMetric struct {
+	Provider   string    `json:"provider"`
+	IP         string    `json:"ip"`
+	UserAgent  string    `json:"user_agent"`
+	Requests   uint64    `json:"requests"`
+	Errors     uint64    `json:"errors"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
 type ServerStats struct {
-	StartedAt      time.Time        `json:"started_at"`
-	UptimeSeconds  int64            `json:"uptime_seconds"`
-	Requests       uint64           `json:"requests"`
-	Errors         uint64           `json:"errors"`
-	ActiveRequests int              `json:"active_requests"`
-	AverageMS      float64          `json:"average_ms"`
-	Goroutines     int              `json:"goroutines"`
-	MemoryAllocMB  float64          `json:"memory_alloc_mb"`
-	Clients        []ClientMetric   `json:"clients"`
-	Providers      []ProviderMetric `json:"providers"`
-	ProviderHealth []ProviderHealth `json:"provider_health"`
-	FlareSolverr   any              `json:"flaresolverr,omitempty"`
-	Recent         []RequestMetric  `json:"recent"`
+	StartedAt       time.Time              `json:"started_at"`
+	UptimeSeconds   int64                  `json:"uptime_seconds"`
+	Requests        uint64                 `json:"requests"`
+	Errors          uint64                 `json:"errors"`
+	ActiveRequests  int                    `json:"active_requests"`
+	AverageMS       float64                `json:"average_ms"`
+	Goroutines      int                    `json:"goroutines"`
+	MemoryAllocMB   float64                `json:"memory_alloc_mb"`
+	Clients         []ClientMetric         `json:"clients"`
+	Providers       []ProviderMetric       `json:"providers"`
+	ProviderClients []ProviderClientMetric `json:"provider_clients"`
+	ProviderHealth  []ProviderHealth       `json:"provider_health"`
+	FlareSolverr    any                    `json:"flaresolverr,omitempty"`
+	Recent          []RequestMetric        `json:"recent"`
 }
 
 type engineMetrics struct {
@@ -60,6 +72,7 @@ type engineMetrics struct {
 	active           int
 	total            time.Duration
 	clients          map[string]*clientMetricState
+	providerClients  map[string]*ProviderClientMetric
 	recent           []RequestMetric
 }
 
@@ -69,7 +82,24 @@ type clientMetricState struct {
 }
 
 func newEngineMetrics() *engineMetrics {
-	return &engineMetrics{started: time.Now(), clients: make(map[string]*clientMetricState)}
+	return &engineMetrics{started: time.Now(), clients: make(map[string]*clientMetricState), providerClients: make(map[string]*ProviderClientMetric)}
+}
+
+func requestProvider(requestURI string) string {
+	u, err := url.ParseRequestURI(requestURI)
+	if err != nil {
+		return ""
+	}
+	if provider := strings.TrimSpace(u.Query().Get("provider")); provider != "" {
+		return provider
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	for i, part := range parts {
+		if (part == "movies" || part == "actors" || part == "reviews") && i+1 < len(parts) && parts[i+1] != "search" {
+			return parts[i+1]
+		}
+	}
+	return ""
 }
 
 func (e *Engine) BeginRequest() func(ip, userAgent, method, path string, status int) {
@@ -105,6 +135,19 @@ func (e *Engine) BeginRequest() func(ip, userAgent, method, path string, status 
 			client.Errors++
 		}
 		client.AverageMS = float64(client.total.Microseconds()) / 1000 / float64(client.Requests)
+		if provider := requestProvider(path); provider != "" {
+			providerKey := strings.ToLower(provider) + "\x00" + key
+			providerClient := m.providerClients[providerKey]
+			if providerClient == nil {
+				providerClient = &ProviderClientMetric{Provider: provider, IP: ip, UserAgent: userAgent}
+				m.providerClients[providerKey] = providerClient
+			}
+			providerClient.Requests++
+			providerClient.LastSeenAt = time.Now()
+			if status >= 400 {
+				providerClient.Errors++
+			}
+		}
 		m.recent = append(m.recent, RequestMetric{At: time.Now(), IP: ip, Method: method, Path: path, Status: status, LatencyMS: float64(d.Microseconds()) / 1000})
 		if len(m.recent) > 100 {
 			m.recent = append([]RequestMetric(nil), m.recent[len(m.recent)-100:]...)
@@ -122,9 +165,18 @@ func (e *Engine) Stats() ServerStats {
 	for _, value := range m.clients {
 		stats.Clients = append(stats.Clients, value.ClientMetric)
 	}
+	for _, value := range m.providerClients {
+		stats.ProviderClients = append(stats.ProviderClients, *value)
+	}
 	stats.Recent = append([]RequestMetric(nil), m.recent...)
 	m.mu.RUnlock()
 	sort.Slice(stats.Clients, func(i, j int) bool { return stats.Clients[i].LastSeenAt.After(stats.Clients[j].LastSeenAt) })
+	sort.Slice(stats.ProviderClients, func(i, j int) bool {
+		if stats.ProviderClients[i].Requests == stats.ProviderClients[j].Requests {
+			return stats.ProviderClients[i].LastSeenAt.After(stats.ProviderClients[j].LastSeenAt)
+		}
+		return stats.ProviderClients[i].Requests > stats.ProviderClients[j].Requests
+	})
 	if len(stats.Clients) > 50 {
 		stats.Clients = stats.Clients[:50]
 	}
