@@ -23,11 +23,16 @@ type ProviderThrottleSetting struct {
 }
 
 type providerThrottleState struct {
-	mu      sync.Mutex
-	cond    *sync.Cond
-	active  int
-	paceMu  sync.Mutex
-	lastRun time.Time
+	mu            sync.Mutex
+	cond          *sync.Cond
+	active        int
+	paceMu        sync.Mutex
+	lastRun       time.Time
+	requests      uint64
+	total         time.Duration
+	lastDuration  time.Duration
+	lastRequestAt time.Time
+	peakActive    int
 }
 
 type ProviderThrottle struct {
@@ -183,6 +188,9 @@ func (t *ProviderThrottle) Begin(provider string) func() {
 		state.cond.Wait()
 	}
 	state.active++
+	if state.active > state.peakActive {
+		state.peakActive = state.active
+	}
 	state.mu.Unlock()
 
 	if setting.MaxSeconds > 0 {
@@ -198,10 +206,41 @@ func (t *ProviderThrottle) Begin(provider string) func() {
 		state.lastRun = time.Now()
 		state.paceMu.Unlock()
 	}
+	started := time.Now()
 	return func() {
 		state.mu.Lock()
+		duration := time.Since(started)
+		state.requests++
+		state.total += duration
+		state.lastDuration = duration
+		state.lastRequestAt = time.Now()
 		state.active--
 		state.cond.Broadcast()
 		state.mu.Unlock()
 	}
+}
+
+func (t *ProviderThrottle) Metrics() []ProviderMetric {
+	t.mu.RLock()
+	type entry struct {
+		key   string
+		state *providerThrottleState
+	}
+	entries := make([]entry, 0, len(t.states))
+	for key, state := range t.states {
+		entries = append(entries, entry{key, state})
+	}
+	t.mu.RUnlock()
+	values := make([]ProviderMetric, 0, len(entries))
+	for _, item := range entries {
+		item.state.mu.Lock()
+		value := ProviderMetric{Provider: item.key, Requests: item.state.requests, Active: item.state.active, PeakActive: item.state.peakActive, LastMS: float64(item.state.lastDuration.Microseconds()) / 1000, LastRequestAt: item.state.lastRequestAt}
+		if item.state.requests > 0 {
+			value.AverageMS = float64(item.state.total.Microseconds()) / 1000 / float64(item.state.requests)
+		}
+		item.state.mu.Unlock()
+		values = append(values, value)
+	}
+	sort.Slice(values, func(i, j int) bool { return values[i].Requests > values[j].Requests })
+	return values
 }

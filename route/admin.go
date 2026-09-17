@@ -38,3 +38,7 @@ func putProviderThrottles(app *engine.Engine) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"saved": true, "providers": app.ProviderThrottleSettings()})
 	}
 }
+
+func getAdminStats(app *engine.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) { c.JSON(http.StatusOK, app.Stats()) }
+}

@@ -29,12 +29,14 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 
 	// redirection middleware
 	r.Use(redirect(app))
+	r.Use(metrics(app))
 
 	// index page
 	r.GET("/", getIndex(app))
 	r.GET("/admin", getAdminPage())
 	r.GET("/admin/api/provider-throttles", getProviderThrottles(app))
 	r.PUT("/admin/api/provider-throttles", putProviderThrottles(app))
+	r.GET("/admin/api/stats", getAdminStats(app))
 
 	system := r.Group("/v1", cacheNoStore())
 	{
@@ -83,6 +85,14 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	}
 
 	return r
+}
+
+func metrics(app *engine.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		finish := app.BeginRequest()
+		c.Next()
+		finish(c.ClientIP(), c.Request.UserAgent(), c.Request.Method, c.Request.URL.Path, c.Writer.Status())
+	}
 }
 
 func logger() gin.HandlerFunc {
