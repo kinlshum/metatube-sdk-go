@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -19,9 +20,14 @@ FLARE_URL = os.getenv("FLARE_URL", "http://192.168.10.170:8191/v1")
 MDC_URL = os.getenv("MDC_URL", "http://192.168.10.170:9208")
 HOST_QUERY_ROOT = os.getenv("HOST_QUERY_ROOT", "/host-downloads/.metatube-provider")
 MDC_QUERY_ROOT = os.getenv("MDC_QUERY_ROOT", "/downloads_kraken/.metatube-provider")
+FLARE_STATS_LOCK = threading.Lock()
+FLARE_STATS = {"calls": 0, "successes": 0, "errors": 0, "total_ms": 0.0,
+               "last_ms": 0.0, "last_at": None, "recent_errors": []}
 
 
 def request_json(url, method="GET", payload=None, timeout=180):
+    flare = url == FLARE_URL and isinstance(payload, dict) and str(payload.get("cmd", "")).startswith("request.")
+    started = time.monotonic()
     data = None if payload is None else json.dumps(payload).encode()
     req = urllib.request.Request(url, data=data, method=method)
     if data is not None:
@@ -29,10 +35,51 @@ def request_json(url, method="GET", payload=None, timeout=180):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:
             body = response.read()
-            return json.loads(body) if body.strip() else {}
+            result = json.loads(body) if body.strip() else {}
+            if flare:
+                solution = result.get("solution", {})
+                ok = result.get("status") == "ok" and solution.get("status", 200) == 200
+                record_flare(ok, started, None if ok else result.get("message", "FlareSolverr error"))
+            return result
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")
+        if flare:
+            record_flare(False, started, f"HTTP {exc.code}: {detail[:300]}")
         raise RuntimeError(f"{method} {url}: HTTP {exc.code}: {detail}") from exc
+    except Exception as exc:
+        if flare:
+            record_flare(False, started, str(exc))
+        raise
+
+
+def record_flare(ok, started, error):
+    elapsed = (time.monotonic() - started) * 1000
+    with FLARE_STATS_LOCK:
+        FLARE_STATS["calls"] += 1
+        FLARE_STATS["successes" if ok else "errors"] += 1
+        FLARE_STATS["total_ms"] += elapsed
+        FLARE_STATS["last_ms"] = elapsed
+        FLARE_STATS["last_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if error:
+            FLARE_STATS["recent_errors"].insert(0, {"at": FLARE_STATS["last_at"], "error": error})
+            del FLARE_STATS["recent_errors"][20:]
+
+
+def flaresolverr_stats():
+    with FLARE_STATS_LOCK:
+        stats = dict(FLARE_STATS)
+        stats["recent_errors"] = list(FLARE_STATS["recent_errors"])
+    stats["average_ms"] = stats["total_ms"] / stats["calls"] if stats["calls"] else 0
+    try:
+        root = FLARE_URL.rsplit("/v1", 1)[0] + "/"
+        status = request_json(root, timeout=5)
+        stats.update({"up": True, "version": status.get("version", ""),
+                      "message": status.get("msg", "FlareSolverr is reachable")})
+        sessions = request_json(FLARE_URL, "POST", {"cmd": "sessions.list"}, timeout=8)
+        stats["sessions"] = len(sessions.get("sessions", []))
+    except Exception as exc:
+        stats.update({"up": False, "message": str(exc), "sessions": 0})
+    return stats
 
 
 def fc2_number(value):
@@ -701,6 +748,14 @@ def mdcng(number):
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/admin/stats":
+            body = json.dumps({"flaresolverr": flaresolverr_stats()}, ensure_ascii=False).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         actor_search = re.fullmatch(
             r"/v1/providers/(XsList|Minnano-AV)/actors\?q=(.*)", self.path
         )

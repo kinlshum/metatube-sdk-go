@@ -2,7 +2,11 @@ package route
 
 import (
 	_ "embed"
+	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -40,5 +44,22 @@ func putProviderThrottles(app *engine.Engine) gin.HandlerFunc {
 }
 
 func getAdminStats(app *engine.Engine) gin.HandlerFunc {
-	return func(c *gin.Context) { c.JSON(http.StatusOK, app.Stats()) }
+	return func(c *gin.Context) {
+		stats := app.Stats()
+		bridgeURL := os.Getenv("METATUBE_PROVIDER_BRIDGE_URL")
+		if bridgeURL == "" {
+			bridgeURL = "http://metatube-provider-bridge:9210"
+		}
+		client := &http.Client{Timeout: 10 * time.Second}
+		if response, err := client.Get(strings.TrimRight(bridgeURL, "/") + "/admin/stats"); err == nil {
+			defer response.Body.Close()
+			var value struct {
+				FlareSolverr any `json:"flaresolverr"`
+			}
+			if response.StatusCode == http.StatusOK && json.NewDecoder(response.Body).Decode(&value) == nil {
+				stats.FlareSolverr = value.FlareSolverr
+			}
+		}
+		c.JSON(http.StatusOK, stats)
+	}
 }

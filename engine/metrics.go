@@ -49,6 +49,7 @@ type ServerStats struct {
 	Clients        []ClientMetric   `json:"clients"`
 	Providers      []ProviderMetric `json:"providers"`
 	ProviderHealth []ProviderHealth `json:"provider_health"`
+	FlareSolverr   any              `json:"flaresolverr,omitempty"`
 	Recent         []RequestMetric  `json:"recent"`
 }
 
