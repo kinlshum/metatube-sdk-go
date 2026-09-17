@@ -68,6 +68,8 @@ func (e *Engine) getMovieReviewsByProviderID(provider mt.MovieProvider, id strin
 	}
 
 	return e.getMovieReviewsWithCallback(provider, id, lazy, func() ([]*model.MovieReviewDetail, error) {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return reviewer.GetMovieReviewsByID(id)
 	})
 }
@@ -95,6 +97,8 @@ func (e *Engine) getMovieReviewsByProviderURL(provider mt.MovieProvider, rawURL 
 	}
 
 	return e.getMovieReviewsWithCallback(provider, id, lazy, func() ([]*model.MovieReviewDetail, error) {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return reviewer.GetMovieReviewsByURL(rawURL)
 	})
 }

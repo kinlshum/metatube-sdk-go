@@ -66,6 +66,8 @@ func (e *Engine) searchMovie(keyword string, provider mt.MovieProvider, fallback
 				}
 			}()
 		}
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return searcher.SearchMovie(keyword)
 	}
 	// Fallback to movie info querying.
@@ -236,6 +238,8 @@ func (e *Engine) getMovieInfoByProviderID(provider mt.MovieProvider, id string, 
 		return nil, mt.ErrInvalidID
 	}
 	return e.getMovieInfoWithCallback(provider, id, lazy, func() (*model.MovieInfo, error) {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return provider.GetMovieInfoByID(id)
 	})
 }
@@ -257,6 +261,8 @@ func (e *Engine) getMovieInfoByProviderURL(provider mt.MovieProvider, rawURL str
 		return nil, mt.ErrInvalidURL
 	}
 	return e.getMovieInfoWithCallback(provider, id, lazy, func() (*model.MovieInfo, error) {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return provider.GetMovieInfoByURL(rawURL)
 	})
 }

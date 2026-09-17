@@ -38,6 +38,8 @@ func (e *Engine) searchActorFromDB(keyword string, provider mt.Provider) (result
 func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool) ([]*model.ActorSearchResult, error) {
 	innerSearch := func(keyword string) (results []*model.ActorSearchResult, err error) {
 		if provider.Name() == gfriends.Name {
+			release := e.providerThrottle.Begin(provider.Name())
+			defer release()
 			return provider.(mt.ActorSearcher).SearchActor(keyword)
 		}
 		if searcher, ok := provider.(mt.ActorSearcher); ok {
@@ -71,6 +73,8 @@ func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool
 					}
 				}()
 			}
+			release := e.providerThrottle.Begin(provider.Name())
+			defer release()
 			return searcher.SearchActor(keyword)
 		}
 		// All providers should implement the ActorSearcher interface.
@@ -158,12 +162,17 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 		}
 	}()
 	if provider.Name() == gfriends.Name {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return provider.GetActorInfoByID(id)
 	}
 	defer func() {
 		// gfriends actor image injection for JAV actor providers.
 		if err == nil && info != nil && provider.Language() == language.Japanese {
-			if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(info.Name); gErr == nil && len(gInfo.Images) > 0 {
+			release := e.providerThrottle.Begin(gfriends.Name)
+			gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(info.Name)
+			release()
+			if gErr == nil && len(gInfo.Images) > 0 {
 				info.Images = append(gInfo.Images, info.Images...)
 			}
 		}
@@ -191,6 +200,8 @@ func (e *Engine) getActorInfoByProviderID(provider mt.ActorProvider, id string, 
 		return nil, mt.ErrInvalidID
 	}
 	return e.getActorInfoWithCallback(provider, id, lazy, func() (*model.ActorInfo, error) {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return provider.GetActorInfoByID(id)
 	})
 }
@@ -212,6 +223,8 @@ func (e *Engine) getActorInfoByProviderURL(provider mt.ActorProvider, rawURL str
 		return nil, mt.ErrInvalidURL
 	}
 	return e.getActorInfoWithCallback(provider, id, lazy, func() (*model.ActorInfo, error) {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
 		return provider.GetActorInfoByURL(rawURL)
 	})
 }

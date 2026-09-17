@@ -32,6 +32,9 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 
 	// index page
 	r.GET("/", getIndex(app))
+	r.GET("/admin", getAdminPage())
+	r.GET("/admin/api/provider-throttles", getProviderThrottles(app))
+	r.PUT("/admin/api/provider-throttles", putProviderThrottles(app))
 
 	system := r.Group("/v1", cacheNoStore())
 	{

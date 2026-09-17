@@ -42,6 +42,7 @@ type Engine struct {
 	// E.g., github.com -> [Gfriends, ...]
 	actorHostProviders *maps.CaseInsensitiveMap[[]mt.ActorProvider]
 	movieHostProviders *maps.CaseInsensitiveMap[[]mt.MovieProvider]
+	providerThrottle   *ProviderThrottle
 }
 
 func New(db *gorm.DB, opts ...Option) *Engine {
@@ -56,6 +57,7 @@ func New(db *gorm.DB, opts ...Option) *Engine {
 		movieProviders:       maps.NewCaseInsensitiveMap[mt.MovieProvider](),
 		actorHostProviders:   maps.NewCaseInsensitiveMap[[]mt.ActorProvider](),
 		movieHostProviders:   maps.NewCaseInsensitiveMap[[]mt.MovieProvider](),
+		providerThrottle:     newProviderThrottle(),
 	}
 	// apply options.
 	for _, opt := range opts {
@@ -151,12 +153,31 @@ func (e *Engine) MustGetMovieProviderByName(name string) mt.MovieProvider {
 // Fetch fetches content from url. If the provider
 // is nil, the default fetcher will be used.
 func (e *Engine) Fetch(url string, provider mt.Provider) (*http.Response, error) {
+	if provider != nil {
+		release := e.providerThrottle.Begin(provider.Name())
+		defer release()
+	}
 	// Provider which implements Fetcher interface should be
 	// used to fetch all its corresponding resources.
 	if fetcher, ok := provider.(mt.Fetcher); ok {
 		return fetcher.Fetch(url)
 	}
 	return e.fetcher.Fetch(url)
+}
+
+func (e *Engine) ProviderThrottleSettings() []ProviderThrottleSetting {
+	actors, movies := make(map[string]bool), make(map[string]bool)
+	for name := range e.actorProviders.Iterator() {
+		actors[throttleKey(name)] = true
+	}
+	for name := range e.movieProviders.Iterator() {
+		movies[throttleKey(name)] = true
+	}
+	return e.providerThrottle.Settings(actors, movies)
+}
+
+func (e *Engine) UpdateProviderThrottleSettings(values []ProviderThrottleSetting) error {
+	return e.providerThrottle.Update(values)
 }
 
 // String returns the name of the Engine instance.
