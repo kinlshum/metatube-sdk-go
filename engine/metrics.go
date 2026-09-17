@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"net"
 	"net/url"
 	"runtime"
 	"sort"
@@ -21,6 +22,7 @@ type ProviderMetric struct {
 
 type ClientMetric struct {
 	IP         string    `json:"ip"`
+	Port       string    `json:"port,omitempty"`
 	UserAgent  string    `json:"user_agent"`
 	Requests   uint64    `json:"requests"`
 	Errors     uint64    `json:"errors"`
@@ -33,6 +35,7 @@ type ClientMetric struct {
 type RequestMetric struct {
 	At        time.Time `json:"at"`
 	IP        string    `json:"ip"`
+	Port      string    `json:"port,omitempty"`
 	Method    string    `json:"method"`
 	Path      string    `json:"path"`
 	Status    int       `json:"status"`
@@ -42,6 +45,7 @@ type RequestMetric struct {
 type ProviderClientMetric struct {
 	Provider   string    `json:"provider"`
 	IP         string    `json:"ip"`
+	Port       string    `json:"port,omitempty"`
 	UserAgent  string    `json:"user_agent"`
 	Requests   uint64    `json:"requests"`
 	Errors     uint64    `json:"errors"`
@@ -102,13 +106,22 @@ func requestProvider(requestURI string) string {
 	return ""
 }
 
-func (e *Engine) BeginRequest() func(ip, userAgent, method, path string, status int) {
+func remotePort(remoteAddr string) string {
+	_, port, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return ""
+	}
+	return port
+}
+
+func (e *Engine) BeginRequest() func(ip, remoteAddr, userAgent, method, path string, status int) {
 	started := time.Now()
 	e.metrics.mu.Lock()
 	e.metrics.active++
 	e.metrics.mu.Unlock()
-	return func(ip, userAgent, method, path string, status int) {
+	return func(ip, remoteAddr, userAgent, method, path string, status int) {
 		d := time.Since(started)
+		port := remotePort(remoteAddr)
 		m := e.metrics
 		m.mu.Lock()
 		defer m.mu.Unlock()
@@ -126,6 +139,7 @@ func (e *Engine) BeginRequest() func(ip, userAgent, method, path string, status 
 			client.UserAgent = userAgent
 			m.clients[key] = client
 		}
+		client.Port = port
 		client.Requests++
 		client.total += d
 		client.LastPath = path
@@ -142,13 +156,14 @@ func (e *Engine) BeginRequest() func(ip, userAgent, method, path string, status 
 				providerClient = &ProviderClientMetric{Provider: provider, IP: ip, UserAgent: userAgent}
 				m.providerClients[providerKey] = providerClient
 			}
+			providerClient.Port = port
 			providerClient.Requests++
 			providerClient.LastSeenAt = time.Now()
 			if status >= 400 {
 				providerClient.Errors++
 			}
 		}
-		m.recent = append(m.recent, RequestMetric{At: time.Now(), IP: ip, Method: method, Path: path, Status: status, LatencyMS: float64(d.Microseconds()) / 1000})
+		m.recent = append(m.recent, RequestMetric{At: time.Now(), IP: ip, Port: port, Method: method, Path: path, Status: status, LatencyMS: float64(d.Microseconds()) / 1000})
 		if len(m.recent) > 100 {
 			m.recent = append([]RequestMetric(nil), m.recent[len(m.recent)-100:]...)
 		}

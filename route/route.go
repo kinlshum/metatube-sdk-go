@@ -92,7 +92,7 @@ func metrics(app *engine.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		finish := app.BeginRequest()
 		c.Next()
-		finish(c.ClientIP(), c.Request.UserAgent(), c.Request.Method, c.Request.URL.RequestURI(), c.Writer.Status())
+		finish(c.ClientIP(), c.Request.RemoteAddr, c.Request.UserAgent(), c.Request.Method, c.Request.URL.RequestURI(), c.Writer.Status())
 	}
 }
 
