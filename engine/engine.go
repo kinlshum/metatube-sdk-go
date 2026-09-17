@@ -44,6 +44,7 @@ type Engine struct {
 	movieHostProviders *maps.CaseInsensitiveMap[[]mt.MovieProvider]
 	providerThrottle   *ProviderThrottle
 	metrics            *engineMetrics
+	health             *providerHealthMonitor
 }
 
 func New(db *gorm.DB, opts ...Option) *Engine {
@@ -60,6 +61,7 @@ func New(db *gorm.DB, opts ...Option) *Engine {
 		movieHostProviders:   maps.NewCaseInsensitiveMap[[]mt.MovieProvider](),
 		providerThrottle:     newProviderThrottle(),
 		metrics:              newEngineMetrics(),
+		health:               newProviderHealthMonitor(),
 	}
 	// apply options.
 	for _, opt := range opts {

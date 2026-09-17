@@ -16,6 +16,7 @@ import (
 )
 
 func New(app *engine.Engine, v auth.Validator) *gin.Engine {
+	app.StartProviderHealthChecks()
 	r := gin.New()
 	{
 		// support CORS

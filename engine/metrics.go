@@ -48,6 +48,7 @@ type ServerStats struct {
 	MemoryAllocMB  float64          `json:"memory_alloc_mb"`
 	Clients        []ClientMetric   `json:"clients"`
 	Providers      []ProviderMetric `json:"providers"`
+	ProviderHealth []ProviderHealth `json:"provider_health"`
 	Recent         []RequestMetric  `json:"recent"`
 }
 
@@ -130,6 +131,7 @@ func (e *Engine) Stats() ServerStats {
 		stats.Recent[i], stats.Recent[j] = stats.Recent[j], stats.Recent[i]
 	}
 	stats.Providers = e.providerThrottle.Metrics()
+	stats.ProviderHealth = e.ProviderHealth()
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	stats.MemoryAllocMB = float64(mem.Alloc) / 1024 / 1024
