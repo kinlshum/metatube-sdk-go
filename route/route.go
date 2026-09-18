@@ -11,6 +11,7 @@ import (
 
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/errors"
+	"github.com/metatube-community/metatube-sdk-go/internal/logbuffer"
 	V "github.com/metatube-community/metatube-sdk-go/internal/version"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
 )
@@ -38,6 +39,7 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	r.GET("/admin/api/provider-throttles", getProviderThrottles(app))
 	r.PUT("/admin/api/provider-throttles", putProviderThrottles(app))
 	r.GET("/admin/api/stats", getAdminStats(app))
+	r.GET("/admin/api/logs", getAdminLogs())
 
 	system := r.Group("/v1", cacheNoStore())
 	{
@@ -97,7 +99,7 @@ func metrics(app *engine.Engine) gin.HandlerFunc {
 }
 
 func logger() gin.HandlerFunc {
-	return gin.LoggerWithConfig(gin.LoggerConfig{})
+	return gin.LoggerWithConfig(gin.LoggerConfig{Output: logbuffer.Output()})
 }
 
 func recovery() gin.HandlerFunc {

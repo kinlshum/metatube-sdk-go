@@ -2,9 +2,9 @@ package engine
 
 import (
 	"log"
-	"os"
 
 	"github.com/metatube-community/metatube-sdk-go/common/fetch"
+	"github.com/metatube-community/metatube-sdk-go/internal/logbuffer"
 	mt "github.com/metatube-community/metatube-sdk-go/provider"
 )
 
@@ -17,7 +17,7 @@ func (e *Engine) init() *Engine {
 }
 
 func (e *Engine) initLogger() {
-	e.logger = log.New(os.Stdout, "[ENGINE]\u0020", log.LstdFlags|log.Llongfile)
+	e.logger = log.New(logbuffer.Output(), "[ENGINE]\u0020", log.LstdFlags|log.Llongfile)
 }
 
 func (e *Engine) initFetcher() {

@@ -2,12 +2,12 @@ package database
 
 import (
 	"log"
-	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"github.com/metatube-community/metatube-sdk-go/internal/logbuffer"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -74,7 +74,7 @@ func Open(cfg *Config) (*gorm.DB, error) {
 
 	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.New(
-			log.New(os.Stdout, "[GORM]\u0020", log.LstdFlags),
+			log.New(logbuffer.Output(), "[GORM]\u0020", log.LstdFlags),
 			logger.Config{
 				SlowThreshold:             100 * time.Millisecond,
 				LogLevel:                  cfg.LogLevel,
