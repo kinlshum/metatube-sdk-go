@@ -5,25 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/metatube-community/metatube-sdk-go/engine"
-	"github.com/metatube-community/metatube-sdk-go/internal/logbuffer"
 )
 
 //go:embed admin.html
 var adminHTML string
-
-func getAdminLogs() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "500"))
-		c.JSON(http.StatusOK, gin.H{"entries": logbuffer.Entries(limit)})
-	}
-}
 
 func getAdminPage() gin.HandlerFunc {
 	return func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(adminHTML)) }

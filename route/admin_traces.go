@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/metatube-community/metatube-sdk-go/internal/logsearch"
 	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 )
 
@@ -75,7 +76,7 @@ func (l *ingestLimiter) allow(key string) bool {
 }
 
 // registerTraceRoutes wires the enrichment trace admin APIs under /admin.
-func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service) {
+func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service, logs *logsearch.Searcher) {
 	limiter := newIngestLimiter(trace.DefaultIngestBurstPerClient, trace.DefaultIngestRefillPerSecond)
 	group := admin.Group("/api/traces")
 	{
@@ -88,7 +89,7 @@ func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service) {
 		group.DELETE("/:traceID", deleteTrace(service))
 		group.POST("/purge-expired", ingestionGuard(limiter), postTracePurge(service))
 	}
-	admin.GET("/api/trace-stats", getTraceStats(service))
+	admin.GET("/api/trace-stats", getTraceStats(service, logs))
 }
 
 // ingestionGuard applies body limits and rate limiting to ingest endpoints.
@@ -129,6 +130,8 @@ func abortWithTraceError(c *gin.Context, err error) {
 func parseTraceFilter(c *gin.Context) trace.Filter {
 	filter := trace.Filter{
 		TraceID:       c.Query("trace_id"),
+		RunID:         c.Query("run_id"),
+		ParentTraceID: c.Query("parent_trace_id"),
 		Kind:          strings.ToLower(strings.TrimSpace(c.Query("kind"))),
 		Operation:     strings.ToLower(strings.TrimSpace(c.Query("operation"))),
 		Status:        strings.ToLower(strings.TrimSpace(c.Query("status"))),
@@ -176,6 +179,7 @@ func parseTraceTime(value string) *time.Time {
 type traceStartBody struct {
 	TraceID          string `json:"trace_id"`
 	ParentTraceID    string `json:"parent_trace_id"`
+	RunID            string `json:"run_id"`
 	Kind             string `json:"kind"`
 	Operation        string `json:"operation"`
 	Query            string `json:"query"`
@@ -218,6 +222,7 @@ func postTraceStart(service *trace.Service) gin.HandlerFunc {
 		handle, started := service.Start(trace.StartInput{
 			TraceID:          body.TraceID,
 			ParentTraceID:    body.ParentTraceID,
+			RunID:            firstNonEmpty(firstNonEmpty(body.RunID, c.GetHeader(headerRunID)), body.WindmillJobID),
 			Kind:             body.Kind,
 			Operation:        body.Operation,
 			Query:            body.Query,
@@ -471,9 +476,11 @@ func postTracePurge(service *trace.Service) gin.HandlerFunc {
 	}
 }
 
-// getTraceStats reports trace bookkeeping and the effective configuration.
-func getTraceStats(service *trace.Service) gin.HandlerFunc {
+// getTraceStats reports trace bookkeeping, the effective configuration, and the
+// log-search availability so the UI can render both without guessing.
+func getTraceStats(service *trace.Service, logs *logsearch.Searcher) gin.HandlerFunc {
 	cfg := service.Config()
+	graylog := logs.GraylogConfig()
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"enabled":                 service.Enabled(),
@@ -483,9 +490,26 @@ func getTraceStats(service *trace.Service) gin.HandlerFunc {
 			"max_payload_bytes":       trace.DefaultMaxPayloadBytes,
 			"ingest_burst_per_client": trace.DefaultIngestBurstPerClient,
 			"counters":                service.Counters(),
+			"bounds": gin.H{
+				"max_run_traces": trace.MaxRunTraces,
+				"max_run_events": trace.MaxRunEvents,
+				"max_search":     logsearch.MaxSearchLimit,
+			},
+			"logs": gin.H{
+				"native_retention":      logsearch.NativeRetention,
+				"graylog_configured":    graylog.Configured(),
+				"graylog_enabled":       graylog.Enabled,
+				"graylog_missing_token": graylog.EnabledWithoutToken(),
+				"graylog_external_url":  graylog.ExternalURL,
+			},
 			"tabs": []string{
 				"LOGS-METATUBE-VIDEO",
 				"LOGS-METATUBE-ACTOR",
+			},
+			"log_sections": []string{
+				"TRACE TIMELINE",
+				"RECENT NATIVE LOGS",
+				"GRAYLOG LOGS",
 			},
 		})
 	}

@@ -159,6 +159,7 @@ func (s *Service) Start(input StartInput) (*RunHandle, bool) {
 	run := Run{
 		TraceID:          traceID,
 		ParentTraceID:    NormalizeID(input.ParentTraceID),
+		RunID:            NormalizeID(input.RunID),
 		Kind:             kind,
 		Operation:        operation,
 		Query:            SanitizeQuery(input.Query),

@@ -19,6 +19,7 @@ const (
 	headerEmbyItemID    = "X-MetaTube-Emby-Item-ID"
 	headerWindmillJobID = "X-MetaTube-Windmill-Job-ID"
 	headerCatalogCode   = "X-MetaTube-Catalog-Code"
+	headerRunID         = "X-MetaTube-Run-ID"
 )
 
 const ginTraceHandleKey = "metatube.trace.handle"
@@ -207,6 +208,7 @@ func traceMiddleware(service *trace.Service) gin.HandlerFunc {
 		handle, started := service.Start(trace.StartInput{
 			TraceID:       clientTraceID,
 			ParentTraceID: c.GetHeader(headerParentTraceID),
+			RunID:         c.GetHeader(headerRunID),
 			Kind:          request.kind,
 			Operation:     operation,
 			Query:         request.query,

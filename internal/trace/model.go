@@ -139,6 +139,7 @@ const (
 type Run struct {
 	TraceID            string     `gorm:"column:trace_id;size:64;primaryKey" json:"trace_id"`
 	ParentTraceID      string     `gorm:"column:parent_trace_id;size:64;index" json:"parent_trace_id,omitempty"`
+	RunID              string     `gorm:"column:run_id;size:64;index" json:"run_id,omitempty"`
 	Kind               string     `gorm:"column:kind;size:16;index" json:"kind"`
 	Operation          string     `gorm:"column:operation;size:32;index" json:"operation"`
 	Query              string     `gorm:"column:query;size:512" json:"query,omitempty"`
@@ -192,6 +193,8 @@ func (Event) TableName() string { return "trace_events" }
 // Filter selects traces for the admin list view.
 type Filter struct {
 	TraceID       string
+	RunID         string
+	ParentTraceID string
 	Kind          string
 	Operation     string
 	Status        string
@@ -212,6 +215,7 @@ type Filter struct {
 type StartInput struct {
 	TraceID          string
 	ParentTraceID    string
+	RunID            string
 	Kind             string
 	Operation        string
 	Query            string

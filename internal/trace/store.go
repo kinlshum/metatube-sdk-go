@@ -147,6 +147,12 @@ func (s *store) ListRuns(filter Filter) ([]Run, int64, error) {
 	if filter.TraceID != "" {
 		query = query.Where("trace_id = ?", filter.TraceID)
 	}
+	if filter.RunID != "" {
+		query = query.Where("run_id = ?", filter.RunID)
+	}
+	if filter.ParentTraceID != "" {
+		query = query.Where("parent_trace_id = ?", filter.ParentTraceID)
+	}
 	if filter.Kind != "" {
 		query = query.Where("kind = ?", filter.Kind)
 	}
@@ -245,6 +251,87 @@ func (s *store) CountRuns() (int64, error) {
 	var count int64
 	err := s.db.Model(&Run{}).Count(&count).Error
 	return count, err
+}
+
+// findRuns returns bounded runs matching a column, ordered oldest first.
+func (s *store) findRuns(column, value string, limit int) ([]Run, error) {
+	runs := make([]Run, 0, limit)
+	if err := s.db.Model(&Run{}).
+		Where(column+" = ?", value).
+		Order("started_at ASC").
+		Limit(limit).
+		Find(&runs).Error; err != nil {
+		return nil, err
+	}
+	return runs, nil
+}
+
+// GroupRuns resolves the traces belonging to one run using only explicit
+// relationships, in the documented priority order: run_id, windmill_job_id, then
+// a parent/child trace relationship. It never groups traces by similarity.
+func (s *store) GroupRuns(id string, limit int) (runs []Run, groupedBy string, truncated bool, err error) {
+	if runs, err = s.findRuns("run_id", id, limit); err != nil {
+		return nil, "", false, err
+	}
+	if len(runs) > 0 {
+		return runs, GroupedByRun, len(runs) >= limit, nil
+	}
+
+	if runs, err = s.findRuns("windmill_job_id", id, limit); err != nil {
+		return nil, "", false, err
+	}
+	if len(runs) > 0 {
+		return runs, GroupedByWindmill, len(runs) >= limit, nil
+	}
+
+	// Single trace, optionally with explicitly related children.
+	trace := &Run{}
+	if err = s.db.Where("trace_id = ?", id).First(trace).Error; err != nil {
+		return nil, "", false, err
+	}
+	runs = []Run{*trace}
+
+	children, err := s.findRuns("parent_trace_id", id, limit-1)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if len(children) > 0 {
+		runs = append(runs, children...)
+		return runs, GroupedByParent, len(runs) >= limit, nil
+	}
+	return runs, GroupedByTrace, false, nil
+}
+
+// ListEventsForTraces returns the ordered events of several traces in a single
+// bounded query, so a grouped run does not need one query per trace.
+func (s *store) ListEventsForTraces(traceIDs []string, limit int) ([]Event, bool, error) {
+	if len(traceIDs) == 0 {
+		return nil, false, nil
+	}
+	if limit <= 0 {
+		limit = MaxRunEvents
+	}
+	events := make([]Event, 0, limit)
+	if err := s.db.Where("trace_id IN ?", traceIDs).
+		Order("trace_id ASC, sequence ASC").
+		Limit(limit).
+		Find(&events).Error; err != nil {
+		return nil, false, err
+	}
+	return events, len(events) >= limit, nil
+}
+
+// ListEventsBetween returns events of one trace inside a time window, used by the
+// step-scoped log correlation.
+func (s *store) ListEventsBetween(traceID string, since, until time.Time, limit int) ([]Event, error) {
+	events := make([]Event, 0, limit)
+	if err := s.db.Where("trace_id = ? AND at >= ? AND at <= ?", traceID, since, until).
+		Order("sequence ASC").
+		Limit(limit).
+		Find(&events).Error; err != nil {
+		return nil, err
+	}
+	return events, nil
 }
 
 // PruneExpired deletes completed traces older than the retention window. Running

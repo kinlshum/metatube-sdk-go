@@ -12,6 +12,7 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/errors"
 	"github.com/metatube-community/metatube-sdk-go/internal/logbuffer"
+	"github.com/metatube-community/metatube-sdk-go/internal/logsearch"
 	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 	V "github.com/metatube-community/metatube-sdk-go/internal/version"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
@@ -45,6 +46,9 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	// index page
 	r.GET("/", getIndex(app))
 
+	// combined log search (native buffer + optional Graylog adapter)
+	logs := logsearch.New(logsearch.GraylogConfigFromEnv())
+
 	// admin page and APIs. When METATUBE_ADMIN_TOKEN is set every /admin route
 	// requires that token, including the trace ingest APIs.
 	admin := r.Group("/admin", adminAuth(adminToken()))
@@ -52,8 +56,10 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	admin.GET("/api/provider-throttles", getProviderThrottles(app))
 	admin.PUT("/api/provider-throttles", putProviderThrottles(app))
 	admin.GET("/api/stats", getAdminStats(app))
-	admin.GET("/api/logs", getAdminLogs())
-	registerTraceRoutes(admin, app.TraceService())
+	admin.GET("/api/logs", getAdminLogs(logs))
+	admin.GET("/api/logs/search", getAdminLogSearch(logs))
+	admin.GET("/api/trace-runs/:runID", getTraceRun(app.TraceService()))
+	registerTraceRoutes(admin, app.TraceService(), logs)
 
 	system := r.Group("/v1", cacheNoStore())
 	{
