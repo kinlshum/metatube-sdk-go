@@ -8,6 +8,10 @@
 
 Metadata Tube SDK in Golang.
 
+## Local development plans
+
+- [MetaTube video and actor enrichment trace tabs](docs/METATUBE_ENRICHMENT_TRACE_TODO.md)
+
 ## Contents
 
 - [MetaTube SDK Go](#metatube-sdk-go)
