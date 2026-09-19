@@ -5,11 +5,28 @@
 `custom-2026.09.19.1` fixes the enrichment debugger interaction: selecting a
 video or actor job now expands the complete run → trace → step viewer directly
 beneath that table row. Step panels continue to correlate structured trace,
-native MetaTube, and Graylog records. See `CHANGELOG.md` and
-`docs/RELEASE_LOG.md`; update the release-log row with the final commit and
-deployed image digest after every deployment.
+native MetaTube, and Graylog records. See `CHANGELOG.md`,
+`docs/RELEASE_LOG.md`, and `docs/DEPLOYMENT_LOG.md`; update the immutable
+release and deployment records for every shipped build.
 
-Updated: 2026-09-18
+Updated: 2026-09-19
+
+## Next coding handoff for DeepSeek/Cline
+
+The approved implementation specification is
+[`docs/METATUBE_ADMIN_NEXT_TODO.md`](docs/METATUBE_ADMIN_NEXT_TODO.md). Its two
+priorities are:
+
+1. Make an expanded trace's error count identify and navigate to the exact
+   provider/stage/error event.
+2. Add genuine rolling five-minute activity, latency, concurrency, and blocking
+   indicators as a right-side SETTINGS column/card.
+
+The specification also defines the mandatory delivery process. Start from a
+fresh clone of the GitHub repository, synchronize and verify the remote branch
+before editing and again before committing, then update `CHANGELOG.md`,
+`docs/RELEASE_LOG.md`, and `docs/DEPLOYMENT_LOG.md`. Push before deployment and
+record immutable commit, image, page-hash, verification, and rollback details.
 
 ## Repository and branch
 

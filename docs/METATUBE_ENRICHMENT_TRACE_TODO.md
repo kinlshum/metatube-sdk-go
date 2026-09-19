@@ -898,3 +898,18 @@ instrumentation entries (`engine/image.go`, translation stages, FlareSolverr
 solve/session/error events, retries/challenges/parse errors/cancellations), the
 Windmill trace helper, the Emby plugin reporting, and mobile polish.
 
+## Next Admin UX work — handed off 2026-09-19
+
+The detailed, implementation-ready specification is
+[`METATUBE_ADMIN_NEXT_TODO.md`](METATUBE_ADMIN_NEXT_TODO.md). It adds:
+
+- an error index in every expanded video/actor trace that names the failed
+  provider and stage and navigates to the precise timeline event; and
+- a genuine rolling `LAST 5 MIN` provider column/card beside SETTINGS throttle
+  controls, with throughput, success/error counts, latency, peak concurrency,
+  fallback, HTTP 429, timeout, and solver indicators.
+
+Acceptance also requires a fresh GitHub clone, remote synchronization before
+editing and committing, tests, push-before-deploy, and updates to the changelog,
+release log, and deployment log. This prevents an older local worktree from
+silently replacing newer code.
