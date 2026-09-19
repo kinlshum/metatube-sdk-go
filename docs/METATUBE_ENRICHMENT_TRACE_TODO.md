@@ -62,10 +62,91 @@ Implemented:
 
 Remaining, in order:
 
-1. Image-fetch and translation events.
-2. Reusable Windmill trace helper posting to the ingest API.
-3. Emby plugin reporting.
-4. FlareSolverr events forwarded from `deployment/provider-bridge/bridge.py`.
+1. Correct the four post-implementation review findings in the dedicated
+   handoff section below.
+2. Image-fetch and translation events.
+3. Reusable Windmill trace helper posting to the ingest API.
+4. Emby plugin reporting.
+5. FlareSolverr events forwarded from `deployment/provider-bridge/bridge.py`.
+
+## DeepSeek corrective handoff (reviewed 2026-09-19)
+
+The trace foundation and both admin tabs are implemented, and the targeted
+packages pass their tests, but the feature is not ready to be called fully
+correct or end-to-end complete. Fix these findings before adding more client
+integrations.
+
+### 1. P1: prevent a nil dereference in actor enrichment
+
+In `engine/actor.go`, the GFriends image-injection trace constructs
+`result_count` with `len(gInfo.Images)` before verifying that `gInfo` is
+non-nil. A provider error may return `(nil, err)`, causing the tracing code to
+panic a metadata request. This violates the requirement that tracing must never
+break a lookup.
+
+- Guard `gInfo` before reading `Images`.
+- Emit `result_count: 0` when the result is nil.
+- Keep the provider failure event and original error behavior intact.
+- Add a unit test whose GFriends provider returns `(nil, error)` and verify no
+  panic occurs.
+
+### 2. P2: calculate `Awaiting client report` from actual downstream state
+
+`route/admin_traces.go` currently calls `trace.RequiresReport(status)`, and
+`RequiresReport` returns true for every `succeeded` or `partial` trace. The UI
+therefore continues to display `Awaiting client report` even after Windmill or
+Emby has reported completion.
+
+- Derive the flag from recorded downstream evidence, not status alone.
+- At minimum, distinguish: no downstream report; Windmill reported but Emby did
+  not; Emby reported; and downstream completion reported.
+- Prefer a persisted summary field or an efficient store query rather than
+  repeatedly scanning an unbounded event collection.
+- A server-only lookup may say downstream status is unavailable. A completed
+  Windmill/Emby trace must not say it is still awaiting that report.
+- Add route/service tests for server-only, Windmill-only, Emby-completed, and
+  downstream-failed traces.
+
+### 3. P2: make Auto-follow functional
+
+The `traceVideoFollow` and `traceActorFollow` controls exist in
+`route/admin.html`, but no JavaScript reads their checked state. Automatic
+five-second list refreshes also do not refresh an open trace drawer; only a
+manual refresh does.
+
+- When Auto-follow is checked, keep the newest page selected and refresh the
+  currently open drawer so new stages appear live.
+- When unchecked, preserve the operator's page, scroll position, open trace,
+  and current detail snapshot.
+- Pause must stop both list and drawer polling. Manual Refresh must work while
+  paused without silently resuming polling.
+- Add UI contract tests that verify the checkbox is referenced by behavior,
+  not merely present in the HTML.
+
+### 4. P3: persist the native lookup result count
+
+Provider events contain `details.result_count`, but server-created trace
+summaries are never updated with the final result count. The drawer can show
+`Results: 0` after a successful lookup.
+
+- Update the trace summary when result selection is recorded.
+- Preserve a legitimate zero-result outcome; do not use `> 0` as the only
+  indication that the caller supplied a count.
+- Test single-provider, all-provider, fallback, empty-result, and actor paths.
+
+### Verification required before handoff completion
+
+Run and report:
+
+```sh
+go test ./internal/trace ./route ./engine
+```
+
+Also exercise one real video lookup and one real actor lookup in `/admin` and
+verify tab separation, correct result counts, live Auto-follow behavior, and
+the downstream-report badge transitions. Full `go test ./...` includes live
+provider/network tests and an unrelated detector fixture; record those failures
+separately rather than treating them as trace regressions.
 
 
 Client-side notes:

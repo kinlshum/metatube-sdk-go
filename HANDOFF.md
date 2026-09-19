@@ -166,6 +166,28 @@ trace tabs are present, `/admin/api/traces` and `/admin/api/trace-stats` answer
 recorded five stages (client, throttle, provider 296 ms, result selection,
 database save) and showed `awaiting_report`.
 
+## DeepSeek trace correction handoff
+
+Code review after the deployment found four issues that must be corrected
+before the two trace tabs are considered complete:
+
+1. **P1:** `engine/actor.go` can dereference a nil GFriends result while building
+   the image-injection trace event. Guard the result and add a regression test.
+2. **P2:** `Awaiting client report` is based only on `succeeded`/`partial`
+   status, so it remains visible after downstream reporting. Derive it from
+   actual Windmill/Emby reporting state and test the state transitions.
+3. **P2:** the Video and Actor Auto-follow checkboxes are currently cosmetic.
+   Wire them to list/drawer polling while preserving Pause and manual Refresh.
+4. **P3:** native server lookups do not persist the final summary result count,
+   so successful traces may display `Results: 0`.
+
+The exact implementation guidance and verification checklist are in the
+**DeepSeek corrective handoff (reviewed 2026-09-19)** section of
+[`docs/METATUBE_ENRICHMENT_TRACE_TODO.md`](docs/METATUBE_ENRICHMENT_TRACE_TODO.md).
+Do not expand scope into acquisition or file management while making these
+corrections. Afterward, continue the remaining image/translation,
+FlareSolverr, Windmill, and Emby client integrations in the documented order.
+
 ## Safety and behavior requirements
 
 - Trace storage failure must never make a metadata lookup fail.
