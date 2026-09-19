@@ -907,7 +907,10 @@ The detailed, implementation-ready specification is
   provider and stage and navigates to the precise timeline event; and
 - a genuine rolling `LAST 5 MIN` provider column/card beside SETTINGS throttle
   controls, with throughput, success/error counts, latency, peak concurrency,
-  fallback, HTTP 429, timeout, and solver indicators.
+  fallback, HTTP 429, timeout, and solver indicators; and
+- provider health updated by real lookup outcomes so successful traffic clears
+  a pending/failed light immediately, while scheduled probes remain available
+  for inactive providers.
 
 Acceptance also requires a fresh GitHub clone, remote synchronization before
 editing and committing, tests, push-before-deploy, and updates to the changelog,

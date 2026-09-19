@@ -21,6 +21,9 @@ priorities are:
    provider/stage/error event.
 2. Add genuine rolling five-minute activity, latency, concurrency, and blocking
    indicators as a right-side SETTINGS column/card.
+3. Update provider health from real lookup outcomes, including correct
+   browser-fallback semantics, provenance, bounded startup checks, and explicit
+   pending/degraded states.
 
 The specification also defines the mandatory delivery process. Start from a
 fresh clone of the GitHub repository, synchronize and verify the remote branch

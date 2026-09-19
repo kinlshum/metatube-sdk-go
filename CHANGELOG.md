@@ -9,6 +9,8 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
   traces so an error count identifies the exact provider, stage, and event.
 - Specified real rolling five-minute provider statistics beside SETTINGS
   throttle controls, including latency, peak concurrency, and blocking signals.
+- Specified lookup-driven provider health, fallback/degradation semantics,
+  observation provenance, and bounded startup/manual health checks.
 - Added a mandatory fresh-clone/synchronize workflow and separate immutable
   release and deployment records to prevent stale builds from replacing newer
   code.

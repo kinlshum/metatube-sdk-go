@@ -2,9 +2,10 @@
 
 Audience: DeepSeek/Cline implementer. Status: design approved; implementation pending.
 
-This handoff covers two Admin UI gaps: identifying the exact error inside an
-expanded enrichment run, and showing genuine rolling five-minute provider
-statistics beside each throttle setting.
+This handoff covers three Admin gaps: identifying the exact error inside an
+expanded enrichment run, showing genuine rolling five-minute provider
+statistics beside each throttle setting, and allowing real provider traffic to
+refresh provider health immediately.
 
 ## A. Error identification inside expanded enrichment traces
 
@@ -89,7 +90,65 @@ Tests require a deterministic clock, bucket expiry, percentile calculation,
 peak concurrency, fallback semantics, backward-compatible JSON, and browser
 coverage of refresh/stale/responsive behavior.
 
-## C. Mandatory repository, release, and deployment workflow
+## C. Update provider health from real calls
+
+A completed provider lookup is a health observation and must update the same
+health state used by the SETTINGS light. Do not leave a provider gray while
+successful traffic is already passing through it.
+
+### State rules
+
+- A successful provider response immediately records green/`UP`, response
+  status, latency, timestamp, and source `lookup`.
+- A direct HTTP 403 followed by a successful FlareSolverr/browser fallback is
+  healthy. Show green with a `fallback` marker rather than red.
+- HTTP 401, unresolved HTTP 403, or HTTP 429 records amber
+  `CHALLENGE`/`RATE LIMITED`; these states must not be reported as fully down.
+- A timeout, connection failure, parse failure that makes the provider result
+  unusable, or unresolved solver failure is a failed observation.
+- Do not turn a recently healthy provider red after one isolated failure.
+  Record it as amber/degraded first. Red/`DOWN` requires a configurable number
+  of consecutive failed observations (default 3) or a configurable failure
+  window. Any later success resets the failure streak immediately.
+- Cancellation caused by the caller must not count as provider failure unless
+  the underlying provider request independently timed out or failed.
+
+Extend `ProviderHealth` without breaking the current JSON fields. Recommended
+additions are `state`, `observation_source` (`lookup`, `scheduled_probe`, or
+`manual_probe`), `last_success_at`, `last_failure_at`, `consecutive_failures`,
+and `fallback_used`. Continue populating existing `up`, `status`, `latency_ms`,
+`error`, and `checked_at` fields for existing clients.
+
+The UI must say `Last verified by lookup`, `Last verified by scheduled probe`,
+or `Last verified manually`, with the timestamp and age. Gray must explicitly
+say `PENDING — first check not completed`; it must not be visually ambiguous.
+
+### Scheduled and manual probes
+
+- Retain hourly probes for inactive providers so lack of traffic does not leave
+  health stale forever.
+- After server startup, run a bounded initial sweep rather than waiting almost
+  an hour for the last alphabetical provider. Use at most 2–3 global workers
+  and honor provider concurrency/delay policies.
+- A scheduled probe must not overwrite a newer lookup observation. Apply
+  observations by completion timestamp under synchronization.
+- Add an optional per-provider `Check now` action. It must use the same bounded
+  scheduler and throttle policy, reject/coalesce duplicates, and expose its
+  source as `manual_probe`.
+- Mark old observations stale after a documented threshold without erasing the
+  last known result.
+
+Instrument the common provider execution boundary so movie, actor, fallback,
+and future provider calls cannot bypass the update. Avoid scattered UI-only or
+provider-specific implementations.
+
+Tests must cover successful lookup before the first scheduled probe, direct 403
+plus successful solver fallback, unresolved 403/429, isolated versus repeated
+failures, recovery, caller cancellation, stale observations, out-of-order probe
+completion, initial-sweep concurrency limits, and compatibility of the existing
+health JSON fields.
+
+## D. Mandatory repository, release, and deployment workflow
 
 Every AI or human implementer must follow this sequence:
 
@@ -119,6 +178,7 @@ Every AI or human implementer must follow this sequence:
 ## Deliverables
 
 - Backend rolling-window metrics and compatible API response.
+- Lookup-driven provider health with bounded startup/manual probes.
 - SETTINGS UI column/card and trace error index/focus behavior.
 - Unit, API, and browser regression tests.
 - Updated handoff, changelog, release log, and deployment log.
