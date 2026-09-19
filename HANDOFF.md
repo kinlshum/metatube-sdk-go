@@ -68,12 +68,19 @@ Still required outside this repository: protect the public hostname at the proxy
   correlation middleware with `X-MetaTube-Trace-ID`, engine instrumentation for
   movie/actor/review lookups (provider, throttle, cache, fallback, selection),
   and the `/admin/api/traces*` ingest and query APIs.
+- Admin UI tabs `LOGS-METATUBE-VIDEO` and `LOGS-METATUBE-ACTOR` with filters,
+  paging, auto-follow, 5-second refresh while visible, a stage-timeline drawer
+  (grouped per provider and component, including redacted field-change tables),
+  copy trace ID, JSON export, `Show in LOGS` correlation and
+  `Awaiting client report`.
+- Optional admin token (`METATUBE_ADMIN_TOKEN`) and trusted-proxy configuration
+  (`METATUBE_TRUSTED_PROXIES`).
 
 The enrichment trace work is documented in
-`docs/METATUBE_ENRICHMENT_TRACE_TODO.md` under "Implementation status". The two
-admin tabs (`LOGS-METATUBE-VIDEO`, `LOGS-METATUBE-ACTOR`), image/translation
-events, Windmill and Emby reporting, FlareSolverr events, and admin
-authentication are still outstanding.
+`docs/METATUBE_ENRICHMENT_TRACE_TODO.md` under "Implementation status". Still
+outstanding: image/translation events, the Windmill trace helper, Emby plugin
+reporting, and FlareSolverr events from the provider bridge.
+
 
 Deployment note: `deployment/compose.yaml` now sets `METATUBE_TRACE_ENABLED`,
 `METATUBE_TRACE_DSN=/config/traces.db`, `METATUBE_TRACE_RETENTION_DAYS`,

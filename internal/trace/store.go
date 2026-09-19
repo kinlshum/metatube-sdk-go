@@ -174,8 +174,8 @@ func (s *store) ListRuns(filter Filter) ([]Run, int64, error) {
 	if filter.Text != "" {
 		like := "%" + strings.ToLower(filter.Text) + "%"
 		query = query.Where(
-			"(LOWER(query) LIKE ? OR LOWER(normalized_query) LIKE ? OR LOWER(selected_provider_id) LIKE ? OR LOWER(error_message) LIKE ?)",
-			like, like, like, like)
+			"(LOWER(trace_id) LIKE ? OR LOWER(query) LIKE ? OR LOWER(normalized_query) LIKE ? OR LOWER(selected_provider_id) LIKE ? OR LOWER(error_message) LIKE ?)",
+			like, like, like, like, like)
 	}
 	// Component matching inspects the structured events rather than free-form logs.
 	if filter.Component != "" {

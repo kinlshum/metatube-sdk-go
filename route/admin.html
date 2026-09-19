@@ -17,11 +17,36 @@
     .stat-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px}.stat-card{padding:15px;background:var(--panel2);border:1px solid var(--line);border-radius:9px}.stat-card b{display:block;font-size:22px}.stat-card span{color:var(--muted);font-size:12px;text-transform:uppercase}.section-title{padding:16px 18px 8px;margin:0;font-size:18px}.scroll-table{overflow:auto}.live{color:var(--green2);font-size:12px}
     .health-cell{width:32px;padding-right:0}.health-dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:#718078;box-shadow:0 0 8px #718078}.health-dot.up{background:#38f06a;box-shadow:0 0 10px #38f06a}.health-dot.down{background:#ff3e4d;box-shadow:0 0 10px #ff3e4d}.health-dot.challenge{background:#ffbd38;box-shadow:0 0 10px #ffbd38}
     .log-viewer-toolbar{display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}.log-viewer-toolbar input{flex:1;max-width:none}.native-log{height:560px;overflow:auto;margin:0;padding:14px 18px;background:#080d0b;color:#b9dec4;font:12px/1.55 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap;word-break:break-word}.native-log .bad{color:#ff8e8e}
+    .tabs{flex-wrap:wrap;justify-content:flex-end}.tab[data-tab^="trace"]{font-size:12px;padding:8px 11px}
+    .trace-toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+    .trace-toolbar input[type=text],.trace-toolbar select{font:inherit;border-radius:7px;border:1px solid var(--line);padding:8px 10px;background:#0d1b15;color:var(--text)}
+    .trace-toolbar input[type=text]{flex:1;min-width:190px;max-width:320px}.trace-toolbar select{cursor:pointer}
+    .trace-toolbar .spacer{flex:1}.trace-toolbar button{padding:8px 13px}.trace-toolbar label{display:flex;align-items:center;gap:5px}
+    #traceVideoRows>tr,#traceActorRows>tr{cursor:pointer}#traceVideoRows>tr:hover,#traceActorRows>tr:hover{background:#183629}
+    .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:650;border:1px solid transparent;white-space:nowrap}
+    .badge.ok{background:#1d4030;color:#8fe3ab;border-color:#2f6a49}.badge.warn{background:#4a3a15;color:#f0cc86;border-color:#7c6423}
+    .badge.bad{background:#4a1f22;color:#ff9d9d;border-color:#7d3438}.badge.idle{background:#27332c;color:#b7c8bd;border-color:#3d5045}
+    .badge.awaiting{background:#3a2f4a;color:#d7b8ff;border-color:#5d4a7a}
+    .trace-drawer{position:fixed;inset:0 0 0 auto;width:min(760px,100%);overflow:auto;background:#101d16;border-left:1px solid var(--line);box-shadow:-16px 0 44px rgba(0,0,0,.5);z-index:5}
+    .trace-drawer .drawer-head{position:sticky;top:0;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:14px 18px;background:#1b3027;border-bottom:1px solid var(--line)}
+    .trace-drawer h2{margin:0;font-size:16px}.trace-drawer .grow{flex:1}.trace-drawer button{padding:7px 12px}
+    .trace-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+    .trace-meta span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+    .timeline{padding:6px 18px 24px}.timeline-group{border:1px solid var(--line);border-radius:9px;margin:12px 0;overflow:hidden}
+    .timeline-group>h3{display:flex;align-items:center;gap:8px;margin:0;padding:10px 13px;background:var(--panel2);font-size:13px}
+    .timeline-group>h3 .totals{margin-left:auto;color:var(--muted);font-weight:500}
+    .timeline-event{display:grid;grid-template-columns:76px 1fr auto;gap:10px;padding:8px 13px;border-top:1px solid #233c30;font-size:13px}
+    .timeline-event .stage{font-weight:650}.timeline-event .dur{color:var(--muted);font-variant-numeric:tabular-nums}
+    .timeline-event .detail{grid-column:2/-1;color:var(--muted);font-size:12px;word-break:break-word}
+    .timeline-event.err{background:#2a1518}.field-changes{width:100%;border-collapse:collapse;margin-top:4px}
+    .field-changes th,.field-changes td{padding:4px 8px;font-size:12px;border-bottom:1px solid #233c30}
+    .pager{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}.pager .spacer{flex:1}.pager button{padding:7px 12px}
+    .mono{font:12px/1.5 ui-monospace,SFMono-Regular,monospace;word-break:break-all}
     @media(max-width:900px){.test-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){main{padding:14px}header{padding:13px 16px;flex-wrap:wrap}.tabs{width:100%;margin:0}th,td{padding:11px 9px}input[type=number]{width:75px}.test-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-<header><div class="logo">MT</div><div><div class="title">MetaTube Admin</div><div class="subtitle">Server-level provider controls</div></div><nav class="tabs"><button class="tab on" data-tab="settings">SETTINGS</button><button class="tab" data-tab="test">TEST</button><button class="tab" data-tab="stats">STATS</button><button class="tab" data-tab="logs">LOGS</button></nav></header>
+<header><div class="logo">MT</div><div><div class="title">MetaTube Admin</div><div class="subtitle">Server-level provider controls</div></div><nav class="tabs"><button class="tab on" data-tab="settings">SETTINGS</button><button class="tab" data-tab="test">TEST</button><button class="tab" data-tab="stats">STATS</button><button class="tab" data-tab="logs">LOGS</button><button class="tab" data-tab="traceVideo">LOGS-METATUBE-VIDEO</button><button class="tab" data-tab="traceActor">LOGS-METATUBE-ACTOR</button></nav></header>
 <main>
   <section id="settingsPage" class="card page">
     <div class="intro"><h1>Provider throttling</h1><p>Every MetaTube client shares these limits. A 0–0 range disables pacing. Concurrency is limited to 1–3 per provider (default 2); JAVDB starts at concurrency 1 with a randomized 3–6 second delay.</p></div>
@@ -49,6 +74,46 @@
     <h2 class="section-title">FlareSolverr error queue</h2><div id="flareErrors" class="log" style="height:150px">No FlareSolverr errors recorded.</div>
     <h2 class="section-title">HTTP error queue</h2><div class="scroll-table"><table><thead><tr><th>Time</th><th>Client</th><th>Request</th><th>Status</th><th>Speed</th></tr></thead><tbody id="httpErrors"></tbody></table></div>
     <h2 class="section-title">Rolling request log</h2><div class="scroll-table"><table><thead><tr><th>Time</th><th>Client</th><th>Request</th><th>Status</th><th>Speed</th></tr></thead><tbody id="recentStats"></tbody></table></div>
+  </section>
+  <section id="traceVideoPage" class="card page hidden">
+    <div class="intro"><h1>MetaTube video enrichment traces</h1><p>Structured lookup, identify, and enrichment timelines for movie work: client, providers, throttle waits, cache, fallback, selection, Windmill, and Emby. Kept separate from the general <b>LOGS</b> tab. <span class="live">Refreshes every 5 seconds while visible</span></p></div>
+    <div class="trace-toolbar">
+      <input type="text" id="traceVideoQ" placeholder="Search query, provider ID, or trace ID…">
+      <input type="text" id="traceVideoClient" placeholder="Client or IP">
+      <input type="text" id="traceVideoProvider" placeholder="Provider">
+      <select id="traceVideoStatus"><option value="">Any status</option><option value="queued">queued</option><option value="running">running</option><option value="succeeded">succeeded</option><option value="partial">partial</option><option value="failed">failed</option><option value="cancelled">cancelled</option></select>
+      <select id="traceVideoComponent"><option value="">Any stage</option><option value="client">client</option><option value="metatube">metatube</option><option value="cache">cache</option><option value="database">database</option><option value="throttle">throttle</option><option value="provider">provider</option><option value="flaresolverr">flaresolverr</option><option value="translation">translation</option><option value="windmill">windmill</option><option value="emby">emby</option></select>
+      <select id="traceVideoSince"><option value="">Any time</option><option value="3600">Last hour</option><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option></select>
+      <label class="note"><input type="checkbox" id="traceVideoErrors"> Errors only</label>
+      <span class="spacer"></span>
+      <button id="traceVideoRefresh" class="tab">Refresh</button>
+      <button id="traceVideoPause" class="tab">Pause</button>
+      <label class="note"><input type="checkbox" id="traceVideoFollow" checked> Auto-follow</label>
+    </div>
+    <div id="traceVideoStatusLine" class="note" style="padding:10px 18px">Loading traces…</div>
+    <div class="scroll-table"><table id="traceVideoTable"><thead><tr><th>Time</th><th>Item</th><th>Operation</th><th>Client</th><th>Provider</th><th>Status</th><th>Duration</th><th>Windmill</th><th>Emby</th></tr></thead><tbody id="traceVideoRows"></tbody></table></div>
+    <div class="pager"><button id="traceVideoPrev" class="tab">Newer</button><button id="traceVideoNext" class="tab">Older</button><span class="spacer"></span><span id="traceVideoPager" class="note"></span></div>
+    <div id="traceVideoDrawer"></div>
+  </section>
+  <section id="traceActorPage" class="card page hidden">
+    <div class="intro"><h1>MetaTube actor enrichment traces</h1><p>Structured actor identify and enrichment timelines: client, providers, throttle waits, cache, fallback, image injection, selection, Windmill, and Emby. Actor traces never appear in the video tab. <span class="live">Refreshes every 5 seconds while visible</span></p></div>
+    <div class="trace-toolbar">
+      <input type="text" id="traceActorQ" placeholder="Search name, provider ID, or trace ID…">
+      <input type="text" id="traceActorClient" placeholder="Client or IP">
+      <input type="text" id="traceActorProvider" placeholder="Provider">
+      <select id="traceActorStatus"><option value="">Any status</option><option value="queued">queued</option><option value="running">running</option><option value="succeeded">succeeded</option><option value="partial">partial</option><option value="failed">failed</option><option value="cancelled">cancelled</option></select>
+      <select id="traceActorComponent"><option value="">Any stage</option><option value="client">client</option><option value="metatube">metatube</option><option value="cache">cache</option><option value="database">database</option><option value="throttle">throttle</option><option value="provider">provider</option><option value="flaresolverr">flaresolverr</option><option value="translation">translation</option><option value="windmill">windmill</option><option value="emby">emby</option></select>
+      <select id="traceActorSince"><option value="">Any time</option><option value="3600">Last hour</option><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option></select>
+      <label class="note"><input type="checkbox" id="traceActorErrors"> Errors only</label>
+      <span class="spacer"></span>
+      <button id="traceActorRefresh" class="tab">Refresh</button>
+      <button id="traceActorPause" class="tab">Pause</button>
+      <label class="note"><input type="checkbox" id="traceActorFollow" checked> Auto-follow</label>
+    </div>
+    <div id="traceActorStatusLine" class="note" style="padding:10px 18px">Loading traces…</div>
+    <div class="scroll-table"><table id="traceActorTable"><thead><tr><th>Time</th><th>Item</th><th>Operation</th><th>Client</th><th>Provider</th><th>Status</th><th>Duration</th><th>Windmill</th><th>Emby</th></tr></thead><tbody id="traceActorRows"></tbody></table></div>
+    <div class="pager"><button id="traceActorPrev" class="tab">Newer</button><button id="traceActorNext" class="tab">Older</button><span class="spacer"></span><span id="traceActorPager" class="note"></span></div>
+    <div id="traceActorDrawer"></div>
   </section>
 </main>
 <script>
@@ -78,5 +143,140 @@
   document.querySelector('#nativeLogFilter').addEventListener('input',drawNativeLogs);document.querySelector('#nativeLogPause').addEventListener('click',e=>{nativeLogsPaused=!nativeLogsPaused;e.target.textContent=nativeLogsPaused?'Resume':'Pause';e.target.classList.toggle('on',nativeLogsPaused);if(!nativeLogsPaused)loadNativeLogs()});
   document.querySelector('#providerStats').addEventListener('click',e=>{if(e.target.closest('.provider-client-detail'))return;const row=e.target.closest('tr'),provider=(row?.querySelector('.provider')?.textContent||'').trim().toLowerCase();if(!provider)return;expandedProvider=expandedProvider===provider?'':provider;showProviderClients()});
   async function loadStats(){try{const r=await fetch('/admin/api/stats');if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json(),health=Object.fromEntries((d.provider_health||[]).map(x=>[x.provider.toLowerCase(),x])),f=d.flaresolverr||{},metrics=Object.fromEntries((d.providers||[]).map(p=>[p.provider.toLowerCase(),p])),allProviders=[...new Map([...(providers||[]).map(p=>[p.provider.toLowerCase(),p.provider]),...(d.providers||[]).map(p=>[p.provider.toLowerCase(),p.provider]),...(d.provider_health||[]).map(p=>[p.provider.toLowerCase(),p.provider])]).values()].sort((a,b)=>a.localeCompare(b));providerHealth=health;document.querySelector('#statCards').innerHTML=[[duration(d.uptime_seconds),'Uptime'],[d.requests.toLocaleString(),'Requests'],[d.active_requests,'Active'],[`${d.errors} (${d.requests?((d.errors/d.requests)*100).toFixed(1):0}%)`,'Errors'],[ms(d.average_ms),'API average'],[`${d.memory_alloc_mb.toFixed(1)} MB`,'Memory'],[d.goroutines,'Goroutines'],[d.clients.length,'Recent clients']].map(x=>`<div class="stat-card"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join('');document.querySelector('#flareStats').innerHTML=[[f.up?'UP':'DOWN',`Service ${f.version||''}`],[f.calls||0,'Solve calls'],[f.successes||0,'Successful'],[f.errors||0,'Errors'],[ms(f.average_ms),'Average solve'],[ms(f.last_ms),'Last solve'],[f.sessions||0,'Active sessions'],[f.last_at?new Date(f.last_at).toLocaleTimeString():'—','Last call']].map(x=>`<div class="stat-card"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join('');document.querySelector('#flareErrors').innerHTML=(f.recent_errors||[]).length?(f.recent_errors||[]).map(x=>`<div class="bad">${esc(x.at)} · ${esc(x.error)}</div>`).join(''):`${esc(f.message||'No FlareSolverr errors recorded.')}`;document.querySelector('#providerStats').innerHTML=allProviders.length?allProviders.map(name=>{const p=metrics[name.toLowerCase()]||{provider:name,requests:0,active:0,peak_active:0,average_ms:0,last_ms:0,last_request_at:null},h=health[p.provider.toLowerCase()],challenged=h&&([401,403,429].includes(h.status)||/forbidden|challenge/i.test(h.error||'')),state=!h?'Pending':h.up?'UP':challenged?'CHALLENGE':'DOWN',detail=!h?'First check pending':`${h.status||'ERR'} · ${ms(h.latency_ms)} · ${ago(h.checked_at)}${challenged?' · access or browser challenge; site may still be live':h.error?' · '+h.error:''}`;return `<tr><td class="provider">${esc(p.provider)}</td><td><span class="pill ${h&&!h.up?'error':''}">${state}</span><div class="note" title="${esc(detail)}">${esc(detail)}</div></td><td>${p.requests}</td><td>${p.active} / ${p.peak_active}</td><td>${p.requests?ms(p.average_ms):'—'}</td><td>${p.requests?ms(p.last_ms):'—'}</td><td>${ago(p.last_request_at)}</td></tr>`}).join(''):'<tr><td colspan="7" class="note">Provider checks begin immediately and are staggered across each hour.</td></tr>';document.querySelector('#clientStats').innerHTML=d.clients.map(c=>`<tr><td>${esc(c.ip)}</td><td>${esc(c.port||'—')}</td><td class="note" title="${esc(c.user_agent)}">${esc(c.user_agent||'Unknown')}</td><td>${c.requests}</td><td>${c.errors}</td><td>${ms(c.average_ms)}</td><td>${ago(c.last_seen_at)}<div class="note">${esc(c.last_path)} · ${c.last_status}</div></td></tr>`).join('');document.querySelector('#recentStats').innerHTML=d.recent.slice(0,30).map(x=>`<tr><td>${new Date(x.at).toLocaleTimeString()}</td><td>${esc(x.ip)}${x.port?':'+esc(x.port):''}</td><td><b>${esc(x.method)}</b> ${esc(x.path)}</td><td>${x.status}</td><td>${ms(x.latency_ms)}</td></tr>`).join('')}catch(e){document.querySelector('#statCards').innerHTML=`<div class="status error">${esc(e.message)}</div>`}}
+  // --- enrichment traces: LOGS-METATUBE-VIDEO / LOGS-METATUBE-ACTOR ---
+  let traceTimer=null;
+  const traceState={video:{offset:0,limit:25,total:0,rows:[],open:'',error:'',paused:false,loading:false,manual:false},actor:{offset:0,limit:25,total:0,rows:[],open:'',error:'',paused:false,loading:false,manual:false}};
+  const TRACE_STATUS_META={succeeded:['ok','✔'],partial:['warn','◐'],running:['warn','◐'],queued:['idle','•'],failed:['bad','✖'],cancelled:['idle','⊘']};
+  const tracePrefix=kind=>kind==='actor'?'traceActor':'traceVideo';
+  const traceEl=(kind,suffix)=>document.querySelector(`#${tracePrefix(kind)}${suffix}`);
+  const traceMs=v=>`${Number(v||0).toFixed(Number(v)>=1000?0:1)} ms`;
+  function traceStatusBadge(status){const meta=TRACE_STATUS_META[status]||['idle','•'];return `<span class="badge ${meta[0]}"><span aria-hidden="true">${meta[1]}</span>${esc(status||'unknown')}</span>`}
+  function traceQuery(kind){const params=new URLSearchParams(),state=traceState[kind];params.set('kind',kind);
+    const text=traceEl(kind,'Q').value.trim(),client=traceEl(kind,'Client').value.trim(),provider=traceEl(kind,'Provider').value.trim();
+    if(text)params.set('q',text);if(client)params.set('client',client);if(provider)params.set('provider',provider);
+    const status=traceEl(kind,'Status').value,component=traceEl(kind,'Component').value,since=traceEl(kind,'Since').value;
+    if(status)params.set('status',status);if(component)params.set('component',component);
+    if(since)params.set('since',new Date(Date.now()-Number(since)*1000).toISOString());
+    if(traceEl(kind,'Errors').checked)params.set('errors','true');
+    params.set('limit',state.limit);params.set('offset',state.offset);
+    return params}
+  function traceRowsHtml(kind){const state=traceState[kind];
+    if(state.error)return `<tr><td colspan="9" class="error">${esc(state.error)}</td></tr>`;
+    if(!state.rows.length)return `<tr><td colspan="9" class="note">No ${kind} traces match these filters yet. New traces appear as clients start work.</td></tr>`;
+    return state.rows.map(trace=>{const errors=trace.error_count?`<span class="badge bad" title="${esc(trace.error_message||'errors recorded')}">${trace.error_count} err</span>`:'';
+      return `<tr data-trace="${esc(trace.trace_id)}">
+        <td class="note">${new Date(trace.started_at).toLocaleString()}</td>
+        <td><b>${esc(trace.query||'—')}</b><div class="note mono">${esc(trace.trace_id.slice(0,18))}</div></td>
+        <td>${esc(trace.operation||'')}</td>
+        <td class="note">${esc(trace.client_name||'unknown')}${trace.client_ip?`<div class="note mono">${esc(trace.client_ip)}</div>`:''}</td>
+        <td>${esc(trace.selected_provider||'—')}${trace.selected_provider_id?`<div class="note mono">${esc(trace.selected_provider_id)}</div>`:''}</td>
+        <td>${traceStatusBadge(trace.status)} ${errors}</td>
+        <td>${traceMs(trace.duration_ms)}</td>
+        <td class="note">${esc(trace.windmill_job_id||'—')}</td>
+        <td class="note">${esc(trace.emby_item_id||'—')}</td></tr>`}).join('')}
+  function drawTraces(kind){const state=traceState[kind];
+    traceEl(kind,'Rows').innerHTML=traceRowsHtml(kind);
+    const from=state.total?state.offset+1:0,to=Math.min(state.offset+state.rows.length,state.total);
+    traceEl(kind,'Pager').textContent=`${from}–${to} of ${state.total}`;
+    traceEl(kind,'Prev').disabled=state.offset<=0;
+    traceEl(kind,'Next').disabled=state.offset+state.limit>=state.total}
+  async function refreshTraces(kind){const state=traceState[kind];
+    if(state.loading)return;
+    if(state.paused&&!state.manual)return;
+    const manual=state.manual;state.manual=false;state.loading=true;
+    try{
+      const r=await fetch('/admin/api/traces?'+traceQuery(kind).toString());
+      if(r.status===401)throw Error('Admin token required. Open /admin?token=<METATUBE_ADMIN_TOKEN> once, then reload.');
+      if(r.status===503)throw Error('Tracing is disabled on this server (METATUBE_TRACE_ENABLED=false).');
+      if(!r.ok)throw Error(`HTTP ${r.status}`);
+      const data=(await r.json()).data||{},counters=data.counters||{};
+      state.rows=data.traces||[];state.total=Number(data.total||0);state.error='';
+      if(state.offset>=state.total&&state.total>0)state.offset=Math.max(0,state.total-state.limit);
+      traceEl(kind,'StatusLine').className='note';
+      traceEl(kind,'StatusLine').innerHTML=`${state.total} ${kind} trace(s) · ${counters.events_stored||0} events stored · ${counters.pruned_runs||0} pruned · storage errors ${counters.store_failures||0}${state.paused?' · <b>paused</b>':''}`;
+    }catch(e){
+      state.rows=[];state.total=0;state.error=e.message;
+      traceEl(kind,'StatusLine').className='note error';traceEl(kind,'StatusLine').textContent=e.message}
+    drawTraces(kind);state.loading=false;
+    if(manual&&state.open)openTrace(kind,state.open,false)}
+  function traceFilterChanged(kind){traceState[kind].offset=0;traceState[kind].manual=true;refreshTraces(kind)}
+  function closeTraceDrawer(kind){traceState[kind].open='';traceEl(kind,'Drawer').innerHTML=''}
+  function traceMeta(label,value){return `<div><span>${esc(label)}</span>${value?`<div>${value}</div>`:'<div class="note">—</div>'}</div>`}
+  function timelineGroupKey(event){return (event.component==='provider'||event.component==='throttle')?'provider:'+(event.provider||'unknown'):'component:'+event.component}
+  function timelineGroups(events){const groups=new Map();
+    for(const event of events){const key=timelineGroupKey(event);
+      if(!groups.has(key))groups.set(key,{label:key.startsWith('provider:')?(event.provider||'unknown provider'):(event.component||'metatube'),icon:key.startsWith('provider:')?'⚙':'•',events:[],total:0});
+      const group=groups.get(key);group.events.push(event);group.total+=Number(event.duration_ms||0)}
+    return [...groups.values()]}
+  function fieldChangesTable(changes){if(!Array.isArray(changes))return '';return `<table class="field-changes"><thead><tr><th>Field</th><th>Action</th><th>Source</th><th>Bytes</th></tr></thead><tbody>${changes.map(change=>`<tr><td>${esc(change.field||'')}</td><td>${esc(change.action||'')}</td><td>${esc(change.provider||'—')}</td><td>${esc(change.value_bytes??'—')}</td></tr>`).join('')}</tbody></table>`}
+  function traceEventDetail(event){const parts=[];
+    if(event.message)parts.push(esc(event.message));
+    if(event.http_status)parts.push(`HTTP ${esc(event.http_status)}`);
+    if(event.provider&&!timelineGroupKey(event).startsWith('provider:'))parts.push(esc(event.provider));
+    if(event.attempt)parts.push(`attempt ${esc(event.attempt)}`);
+    if(event.details&&event.details.changes)parts.push(fieldChangesTable(event.details.changes));
+    else if(event.details&&Object.keys(event.details).length)parts.push(`<span class="mono">${esc(JSON.stringify(event.details))}</span>`);
+    return parts.join(' · ')}
+  function renderTraceDrawer(kind,trace,awaiting){const events=trace.events||[],groups=timelineGroups(events),totals={};
+    events.forEach(event=>{const key=event.component||'metatube';totals[key]=(totals[key]||0)+Number(event.duration_ms||0)});
+    const summary=Object.entries(totals).filter(entry=>entry[1]>0).map(entry=>`${entry[0]} ${traceMs(entry[1])}`).join(' · ');
+    return `<div class="drawer-head"><h2>${esc(trace.operation||'trace')} · ${esc(trace.kind||kind)}</h2>${traceStatusBadge(trace.status)}${awaiting?' <span class="badge awaiting" title="MetaTube finished this trace; Windmill or Emby has not reported downstream stages yet.">Awaiting client report</span>':''}<span class="grow"></span><button data-action="copy">Copy trace ID</button><button data-action="export">Export JSON</button><button data-action="logs">Show in LOGS</button><button data-action="delete">Delete</button><button data-action="close" class="tab">Close</button></div>
+      <div class="trace-meta">
+        ${traceMeta('Trace ID',`<span class="mono">${esc(trace.trace_id)}</span>`)}
+        ${traceMeta('Query',esc(trace.query||'—'))}
+        ${traceMeta('Client',`${esc(trace.client_name||'unknown')}<div class="note mono">${esc(trace.client_ip||'')}${trace.client_port?':'+esc(trace.client_port):''}</div>`)}
+        ${traceMeta('Started',new Date(trace.started_at).toLocaleString())}
+        ${traceMeta('Completed',trace.completed_at?new Date(trace.completed_at).toLocaleString():'<span class="badge warn"><span aria-hidden="true">◐</span>still running</span>')}
+        ${traceMeta('Duration',traceMs(trace.duration_ms))}
+        ${traceMeta('Selected result',trace.selected_provider?`${esc(trace.selected_provider)}<div class="note mono">${esc(trace.selected_provider_id||'')}</div>`:'—')}
+        ${traceMeta('Results',esc(trace.result_count||0))}
+        ${traceMeta('Windmill job',trace.windmill_job_id?`<span class="mono">${esc(trace.windmill_job_id)}</span>`:'—')}
+        ${traceMeta('Emby item',trace.emby_item_id?`<span class="mono">${esc(trace.emby_item_id)}</span>`:'—')}
+        ${traceMeta('Errors',trace.error_count?`<span class="error">${esc(trace.error_code||'error')} · ${esc(trace.error_message||'')}</span>`:'0')}
+        ${traceMeta('Events',esc(trace.event_count||events.length))}
+      </div>
+      ${summary?`<div class="note" style="padding:12px 18px 0">Stage totals: ${esc(summary)}</div>`:''}
+      <div class="timeline">${groups.map(group=>`<section class="timeline-group"><h3><span aria-hidden="true">${group.icon}</span>${esc(group.label)}<span class="totals">${group.events.length} event(s) · ${traceMs(group.total)}</span></h3>${group.events.map(event=>`<div class="timeline-event ${event.level==='error'?'err':''}"><span class="note">${new Date(event.at).toLocaleTimeString()}</span><span class="stage">${esc(event.stage||'')}</span><span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span><span class="detail">${traceEventDetail(event)}</span></div>`).join('')}</section>`).join('')||'<div class="note">No events recorded for this trace.</div>'}</div>`}
+  async function openTrace(kind,traceId,scroll){const state=traceState[kind];state.open=traceId;const drawer=traceEl(kind,'Drawer');
+    try{
+      const r=await fetch('/admin/api/traces/'+encodeURIComponent(traceId));
+      if(!r.ok)throw Error(r.status===404?'Trace not found (it may have been pruned or deleted).':`HTTP ${r.status}`);
+      const data=(await r.json()).data||{};
+      drawer.innerHTML=renderTraceDrawer(kind,data.trace||data,!!data.awaiting_report);
+      drawer.querySelector('[data-action="copy"]').addEventListener('click',()=>copyTraceId(traceId,kind));
+      drawer.querySelector('[data-action="export"]').addEventListener('click',()=>window.open('/admin/api/traces/'+encodeURIComponent(traceId)+'/export','_blank'));
+      drawer.querySelector('[data-action="logs"]').addEventListener('click',()=>showTraceInLogs(traceId));
+      drawer.querySelector('[data-action="delete"]').addEventListener('click',()=>deleteTrace(kind,traceId));
+      drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind));
+      if(scroll)drawer.scrollTop=0
+    }catch(e){drawer.innerHTML=`<div class="drawer-head"><h2>Trace</h2><span class="grow"></span><button data-action="close" class="tab">Close</button></div><div class="note" style="padding:16px 18px">${esc(e.message)}</div>`;drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind))}}
+  function copyTraceId(traceId,kind){const done=()=>{traceEl(kind,'StatusLine').textContent=`Copied ${traceId}`;setTimeout(()=>refreshTraces(kind),1600)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(traceId).then(done).catch(()=>{})}
+    else{const input=document.createElement('input');input.value=traceId;document.body.append(input);input.select();try{document.execCommand('copy')}catch(e){}input.remove();done()}}
+  function showTraceInLogs(traceId){document.querySelector('#nativeLogFilter').value=traceId;nativeLogsPaused=false;const pause=document.querySelector('#nativeLogPause');pause.textContent='Pause';pause.classList.remove('on');document.querySelector('.tab[data-tab="logs"]').click();loadNativeLogs()}
+  async function deleteTrace(kind,traceId){
+    if(!confirm('Delete this trace and its events? This cannot be undone.'))return;
+    try{const r=await fetch('/admin/api/traces/'+encodeURIComponent(traceId),{method:'DELETE'});if(!r.ok)throw Error(`HTTP ${r.status}`);closeTraceDrawer(kind);traceState[kind].manual=true;refreshTraces(kind)}
+    catch(e){traceEl(kind,'StatusLine').className='note error';traceEl(kind,'StatusLine').textContent=e.message}}
+  ['video','actor'].forEach(kind=>{
+    traceEl(kind,'Q').addEventListener('input',()=>traceFilterChanged(kind));
+    traceEl(kind,'Client').addEventListener('input',()=>traceFilterChanged(kind));
+    traceEl(kind,'Provider').addEventListener('input',()=>traceFilterChanged(kind));
+    traceEl(kind,'Status').addEventListener('change',()=>traceFilterChanged(kind));
+    traceEl(kind,'Component').addEventListener('change',()=>traceFilterChanged(kind));
+    traceEl(kind,'Since').addEventListener('change',()=>traceFilterChanged(kind));
+    traceEl(kind,'Errors').addEventListener('change',()=>traceFilterChanged(kind));
+    traceEl(kind,'Refresh').addEventListener('click',()=>{traceState[kind].manual=true;refreshTraces(kind)});
+    traceEl(kind,'Prev').addEventListener('click',()=>{const state=traceState[kind];state.offset=Math.max(0,state.offset-state.limit);state.manual=true;refreshTraces(kind)});
+    traceEl(kind,'Next').addEventListener('click',()=>{const state=traceState[kind];state.offset+=state.limit;state.manual=true;refreshTraces(kind)});
+    traceEl(kind,'Pause').addEventListener('click',event=>{const state=traceState[kind];state.paused=!state.paused;event.target.textContent=state.paused?'Resume':'Pause';event.target.classList.toggle('on',state.paused);if(!state.paused){state.manual=true;refreshTraces(kind)}});
+    traceEl(kind,'Rows').addEventListener('click',event=>{const row=event.target.closest('tr');if(row&&row.dataset.trace)openTrace(kind,row.dataset.trace,true)});
+  });
+  function traceTabKind(tab){return tab==='traceActor'?'actor':tab==='traceVideo'?'video':''}
+  document.querySelectorAll('.tab[data-tab]').forEach(button=>button.addEventListener('click',()=>{
+    clearInterval(traceTimer);traceTimer=null;
+    const kind=traceTabKind(button.dataset.tab);
+    if(kind){const state=traceState[kind];state.offset=0;state.manual=true;refreshTraces(kind);traceTimer=setInterval(()=>{if(document.hidden)return;refreshTraces(kind)},5000)}
+    else{closeTraceDrawer('video');closeTraceDrawer('actor')}}));
 </script>
 </body></html>

@@ -49,20 +49,24 @@ Implemented:
   selection for movie, actor, and review paths.
 - Admin APIs: start/events/finish for client reporting, list with filters,
   detail, sanitized export, delete, purge-expired, and stats.
+- Admin UI: the `LOGS-METATUBE-VIDEO` and `LOGS-METATUBE-ACTOR` tabs with
+  filters, paging, auto-follow, 5-second refresh while visible, a stage-timeline
+  drawer grouped per provider and per component, redacted field-change tables,
+  copy/export actions, `Show in LOGS` correlation, and `Awaiting client report`.
+- Optional admin authentication (`METATUBE_ADMIN_TOKEN`) covering every
+  `/admin` route, and `METATUBE_TRUSTED_PROXIES` so client IPs cannot be spoofed.
 - Tests in `internal/trace` and `route` cover video/actor separation, concurrent
   event ordering, idempotency, per-run caps, retention (running traces are never
   pruned), abandoned-trace closing, redaction, store-failure safety, filters,
-  and disabled-mode behaviour.
+  tab wiring, and the payload contract the UI depends on.
 
 Remaining, in order:
 
-1. `LOGS-METATUBE-VIDEO` and `LOGS-METATUBE-ACTOR` admin tabs (step 3) reading
-   `/admin/api/traces`.
-2. Image-fetch and translation events.
-3. Reusable Windmill trace helper posting to the ingest API.
-4. Emby plugin reporting.
-5. FlareSolverr events forwarded from `deployment/provider-bridge/bridge.py`.
-6. Authentication for `/admin/*` (currently unauthenticated).
+1. Image-fetch and translation events.
+2. Reusable Windmill trace helper posting to the ingest API.
+3. Emby plugin reporting.
+4. FlareSolverr events forwarded from `deployment/provider-bridge/bridge.py`.
+
 
 Client-side notes:
 
@@ -243,19 +247,23 @@ client, provider, operation, status, component, error-only, and time range.
 
 ## Admin UI TODO
 
-- [ ] Add top-level tabs named exactly `LOGS-METATUBE-VIDEO` and
+- [x] Add top-level tabs named exactly `LOGS-METATUBE-VIDEO` and
       `LOGS-METATUBE-ACTOR`, separate from `LOGS`.
-- [ ] Table columns: time, query/item, operation, client, providers, status,
+- [x] Table columns: time, query/item, operation, client, providers, status,
       duration, Windmill job, and Emby item.
-- [ ] Clicking a row opens a stage timeline/drawer without navigation.
-- [ ] Group provider attempts and show throttle, lookup, FlareSolverr, parsing,
-      translation, Windmill, and Emby timings separately.
-- [ ] Green succeeded, amber partial/running, red failed, neutral queued; include
+- [x] Clicking a row opens a stage timeline/drawer without navigation.
+- [x] Group provider attempts and show throttle, lookup, FlareSolverr, parsing,
+      translation, Windmill, and Emby timings separately. Groups are formed per
+      provider (throttle + provider events) and per component; FlareSolverr,
+      translation, Windmill, and Emby groups appear as soon as those events are
+      recorded or reported by a client.
+- [x] Green succeeded, amber partial/running, red failed, neutral queued; include
       text/icons so status does not depend on color alone.
-- [ ] Auto-refresh every 5 seconds only while visible, plus Refresh, Pause,
+- [x] Auto-refresh every 5 seconds only while visible, plus Refresh, Pause,
       auto-follow, filters, pagination, copy trace ID, and JSON export.
-- [ ] Link to matching general log lines.
-- [ ] Show `Awaiting client report` when MetaTube finished but Windmill/Emby has
+- [x] Link to matching general log lines (`Show in LOGS` filters the live log
+      viewer by the trace ID).
+- [x] Show `Awaiting client report` when MetaTube finished but Windmill/Emby has
       not reported downstream completion.
 - [ ] Desktop-first is acceptable; mobile is not a release blocker.
 

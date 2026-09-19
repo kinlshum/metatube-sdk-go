@@ -417,6 +417,11 @@ func TestFiltersAndPagination(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, total)
 
+	// Pasting a trace ID into the text filter must find that trace.
+	_, total, err = service.List(Filter{Text: runs[0].TraceID})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, total)
+
 	_, total, err = service.List(Filter{Client: "192.168.10.170"})
 	require.NoError(t, err)
 	assert.EqualValues(t, 5, total)
