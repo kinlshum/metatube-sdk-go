@@ -325,10 +325,14 @@
       remember({cause,component:event.component||'metatube',provider:event.provider||'',stage:event.stage||'event',
         status:Number(event.http_status||0),message:event.message||'',at:event.at||'',attempt:Number(event.attempt||0),
         duration_ms:Number(event.duration_ms||0),eventKey:traceEventKey(event),stepKey:stepKey(trace.trace_id,event.sequence)})}
-    if(Number(trace.error_count||0)>0)remember({cause:trace.error_code||'trace error',component:'metatube',
-      provider:trace.selected_provider||'',stage:trace.error_code||'trace_error',status:Number(trace.error_status||0),
-      message:trace.error_message||'',at:trace.completed_at||trace.started_at||'',attempt:0,
-      duration_ms:Number(trace.duration_ms||0),eventKey:'',stepKey:''});
+    // error_count also counts the timeline failures, so the summary is only
+    // added when it carries information the timeline did not show, and it is
+    // never attributed to the provider that happened to be selected.
+    const recorded=Number(trace.error_count||0),summaryStage=trace.error_code||'trace_error';
+    if(recorded>0&&(!entries.length||(recorded>entries.length&&!entries.some(entry=>entry.stage===summaryStage))))
+      remember({cause:trace.error_code||'trace error',component:'trace',provider:'',stage:summaryStage,
+        status:0,message:trace.error_message||'',at:trace.completed_at||trace.started_at||'',attempt:0,
+        duration_ms:0,eventKey:'',stepKey:''});
     return entries}
   function traceErrorVerdict(trace,count){const status=String(trace.status||'');
     if(status==='failed')return{cls:'bad',icon:'✖',text:'run failed'};
@@ -483,7 +487,7 @@
   function stepWindow(event){const start=new Date(event.at||Date.now());
     if(Number.isNaN(start.getTime()))return{from:'',until:''};
     const end=start.getTime()+Math.max(0,Number(event.duration_ms||0));
-    return{from:new Date(start.getTime()-2000).toISOString(),until:new Date(end.getTime()+2000).toISOString()}}
+    return{from:new Date(start.getTime()-2000).toISOString(),until:new Date(end+2000).toISOString()}}
   function stepNodeHtml(trace,event,position){const key=stepKey(trace.trace_id,event.sequence),window=stepWindow(event);
     return `<details class="step" data-step="${esc(key)}" data-trace="${esc(trace.trace_id)}" data-seq="${Number(event.sequence||0)}" data-from="${esc(window.from)}" data-until="${esc(window.until)}"${runState.openSteps[key]?' open':''}>
       <summary><span class="at">${new Date(event.at).toLocaleTimeString()}</span><span class="source-badge trace">TRACE</span>

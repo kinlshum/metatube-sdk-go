@@ -404,7 +404,11 @@ func TestAdminPageExposesRunTraceDebugger(t *testing.T) {
 	assert.Contains(t, body, "refreshIngestion();traceTimer=setInterval", "the card must refresh with the tab")
 	assert.Contains(t, body, "traceMeta('Run'", "the drawer must show the run id")
 	assert.Contains(t, body, "getTime()-2000", "the step window must start two seconds early")
-	assert.Contains(t, body, "getTime()+2000", "the step window must end two seconds late")
+	// `end` is already a millisecond number: calling getTime() on it threw a
+	// TypeError and aborted the whole run/step tree render.
+	assert.Contains(t, body, "until:new Date(end+2000).toISOString()",
+		"the step window must end two seconds late")
+	assert.NotContains(t, body, "end.getTime()+2000", "the step window must not call getTime() on a number")
 	assert.Contains(t, body, "data-log-follow", "each step log panel must have its own follow toggle")
 	assert.Contains(t, body, "runState.openSteps[", "expanded steps must survive a live refresh")
 }

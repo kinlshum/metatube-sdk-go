@@ -335,6 +335,20 @@ func TestAdminPageErrorIndexControls(t *testing.T) {
 	// The same failure reported by both the summary and the timeline is listed once.
 	assert.Contains(t, body, "if(seen.has(key))return;seen.add(key);entries.push(entry)};")
 
+	// The trace-level summary is only added when it carries information the
+	// timeline did not already show, and it is never attributed to whichever
+	// provider happened to be selected.
+	assert.Contains(t, body, "if(recorded>0&&(!entries.length||(recorded>entries.length&&!entries.some(entry=>entry.stage===summaryStage))))",
+		"the trace-level summary must not duplicate timeline failures")
+	assert.Contains(t, body, "component:'trace',provider:''")
+	assert.NotContains(t, body, "provider:trace.selected_provider||'',stage:trace.error_code",
+		"a trace-level error must not be blamed on the selected provider")
+
+	// Regression: a step window used to call getTime() on a millisecond number,
+	// which threw a TypeError and broke the whole run/step tree.
+	assert.Contains(t, body, "until:new Date(end+2000).toISOString()")
+	assert.NotContains(t, body, "end.getTime()+2000")
+
 	// Focus control: open the owning group, scroll to the event, and focus it.
 	assert.Contains(t, body, `data-focus-error="${esc(entry.eventKey)}"`)
 	assert.Contains(t, body, `data-focus-step="${esc(entry.stepKey)}"`)
