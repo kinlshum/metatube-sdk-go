@@ -131,6 +131,41 @@ end-to-end success when downstream status was never reported.
 4. Reusable Windmill trace helper and reporting from both enrichment flows.
 5. Emby plugin correlation/reporting and end-to-end tests.
 
+## Deployment record
+
+Deployed on 2026-09-19 03:18 UTC (2026-09-18 23:18 EDT) from commit `9da50ec`:
+
+- Image `kinlshum/metatube-server-providers:local` on Kraken, built by
+  `docker compose build metatube` from the GitHub branch (context
+  `https://github.com/kinlshum/metatube-sdk-go.git#codex/mdcng-fc2cmadb-providers`).
+- Only the `metatube` container was recreated
+  (`docker compose up -d --no-deps metatube`); postgres, flaresolverr and
+  provider-bridge were left running.
+- Trace store: `/mnt/cache_nvme_apps/appdata/metatube-server-charleshuang233/traces.db`
+  (mounted as `/config/traces.db`). It survived the container recreation.
+- Compose backups kept on the host:
+  `compose.yaml.backup-20260918-231650` (pre-deploy),
+  `compose.yaml.backup-20260918-232049` (before the trusted-proxy fix).
+- Rollback image tag: `kinlshum/metatube-server-providers:rollback-20260918-231650`
+  (still the previous build).
+
+Rollback:
+
+```sh
+cd /mnt/cache_nvme_apps/appdata/metatube-stack
+cp -p compose.yaml.backup-20260918-231650 compose.yaml     # env without tracing
+docker tag kinlshum/metatube-server-providers:rollback-20260918-231650 \
+           kinlshum/metatube-server-providers:local
+docker compose up -d --no-deps metatube
+```
+
+Verified after deploy: `/admin` serves the new page (sha256 `8fa3074e…`) on both
+`http://192.168.10.166:8080` and `https://metatube-admin.madtechinc.com`, the two
+trace tabs are present, `/admin/api/traces` and `/admin/api/trace-stats` answer
+`enabled: true`, `/config/traces.db` is created, and a real JavBus lookup
+recorded five stages (client, throttle, provider 296 ms, result selection,
+database save) and showed `awaiting_report`.
+
 ## Safety and behavior requirements
 
 - Trace storage failure must never make a metadata lookup fail.

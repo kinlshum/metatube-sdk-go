@@ -63,10 +63,11 @@ services:
       # every /admin route (page, stats, logs, throttles, traces). Empty means
       # the admin stays unauthenticated, which is only safe on a trusted LAN.
       METATUBE_ADMIN_TOKEN: ${METATUBE_ADMIN_TOKEN:-}
-      # Proxy CIDRs whose X-Forwarded-For may be trusted for client attribution.
-      # Empty means client IPs always come from the connection, so callers cannot
-      # spoof their address in statistics or traces.
-      METATUBE_TRUSTED_PROXIES: ${METATUBE_TRUSTED_PROXIES:-}
+      # Proxy addresses whose X-Forwarded-For may be trusted for client
+      # attribution: the OpenResty reverse proxy in front of this stack. An empty
+      # value trusts nothing, so client IPs always come from the connection and
+      # cannot be spoofed by a caller.
+      METATUBE_TRUSTED_PROXIES: ${METATUBE_TRUSTED_PROXIES-192.168.10.172,192.168.10.1}
       DSN: postgres://metatube:metatube@postgres:5432/metatube?sslmode=disable
       DB_AUTO_MIGRATE: "1"
       DB_PREPARED_STMT: "1"

@@ -27,7 +27,7 @@ which must never be committed):
 | --- | --- |
 | `METATUBE_TOKEN` | Bearer token required by the `/v1` metadata API. Empty disables authentication entirely. |
 | `METATUBE_ADMIN_TOKEN` | When set, every `/admin` route (page, stats, logs, throttles and traces) requires this token. Empty leaves the admin unauthenticated. |
-| `METATUBE_TRUSTED_PROXIES` | Comma-separated proxy IPs/CIDRs whose `X-Forwarded-For` may be trusted for client attribution. Empty means client IPs come from the connection only, so callers cannot spoof their address. |
+| `METATUBE_TRUSTED_PROXIES` | Proxy IPs whose `X-Forwarded-For` may be trusted for client attribution. Defaults to the OpenResty proxy (`192.168.10.172,192.168.10.1`). Set it to an empty value in `.env` to trust nothing, so client IPs always come from the connection. |
 
 Admin token usage, once set:
 
