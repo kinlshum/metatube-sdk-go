@@ -262,8 +262,10 @@ cookies, tokens, full metadata payloads, or image bodies.
 
 #### Current log sources and retention
 
-Do not design this feature on the assumption that Graylog already stores the
-logs. The deployed system currently has three distinct data sources:
+The homelab already has an operational central Graylog service, but this
+MetaTube repository does not yet emit or search Graylog messages. Until the
+integration described below is implemented, the deployed MetaTube service has
+three local data sources:
 
 1. **Structured trace events (durable):** SQLite at
    `/config/traces.db`, mounted from
@@ -278,8 +280,8 @@ logs. The deployed system currently has three distinct data sources:
    currently read that file, and its host path must never be exposed directly
    through the Admin API.
 
-There is currently no Graylog/GELF output, Graylog API client, or log scraping
-store in this repository. Therefore:
+There is currently no MetaTube Graylog/GELF output or Graylog API client in
+this repository. Therefore:
 
 - use SQLite trace events to reconstruct the durable step history;
 - use the native buffer only for recent correlated diagnostic lines;
@@ -288,11 +290,87 @@ store in this repository. Therefore:
 - do not scrape Docker log files from the browser or grant the container access
   to `/var/lib/docker`.
 
-Graylog may be added later as an optional backend through a narrow log-search
-interface. If implemented, send structured GELF from stdout with `trace_id`,
+Graylog must be added as an optional backend through a narrow log-search
+interface. Send structured GELF with `trace_id`,
 `run_id`, `component`, `stage`, `provider`, and `level` fields, then query
 Graylog server-side using credentials stored only in environment/secrets. The
 Admin UI must work without Graylog and must never receive Graylog credentials.
+
+#### Graylog purpose, authentication, and integration topology
+
+> **Graylog: operational diagnostics. Store detailed MetaTube, provider
+> bridge, FlareSolverr, Windmill, reverse-proxy, and container logs across
+> restarts and multiple servers.**
+
+Graylog complements, but does not replace, `traces.db`. SQLite is the durable,
+authoritative workflow/run timeline; Graylog is the durable cross-service
+diagnostic record used to explain what every participating service did during
+that run.
+
+The existing Graylog deployment is on `192.168.10.153` and already provides:
+
+- Graylog web/API service on port `9000`, published externally as
+  `https://graylog.madtechinc.com`;
+- authenticated application GELF HTTP input at
+  `http://192.168.10.153:12201/gelf`;
+- authenticated Vector/container GELF HTTP input at
+  `http://192.168.10.153:12202/gelf` (4 MiB maximum message/frame size);
+- ingestion authentication using the `X-Graylog-Token` request header; and
+- Graylog administrative/API access using a dedicated administrator account
+  with HTTP Basic authentication. The root-only bootstrap credential file is
+  `/root/graylog-admin-credentials` inside the Graylog LXC.
+
+The Graylog page `/system/authentication/services/create` configures human
+login backends such as OIDC/LDAP. It is not the application-ingestion
+credential. Normal services must never use the Graylog administrator login to
+send logs.
+
+Create a dedicated MetaTube ingestion token/input where practical. Reusing the
+application input on `12201` is acceptable only if every message contains
+stable routing fields and the token is independently rotatable. Store all
+tokens in Docker/host secrets or protected environment variables; never commit,
+display, return, export, or include them in a URL. Token rotation must update
+the Graylog input and sender atomically and finish with an authenticated probe.
+
+Server and service integration points:
+
+| Origin | Known endpoint/location | Graylog integration requirement |
+| --- | --- | --- |
+| Graylog LXC | `192.168.10.153:9000`, GELF `12201/12202` | Central durable log store, restricted streams/index sets, retention, search API, and safe UI deep links. |
+| MetaTube server | `192.168.10.166:8080` | Emit structured application/provider events to authenticated GELF HTTP; search Graylog only from the server-side adapter. Include trace/run/client/provider/timing fields. |
+| Provider bridge | Configured bridge endpoint (currently consumed as `192.168.10.170:9210`) | Propagate `trace_id`/`run_id`; log provider selection, request duration, throttle wait, retry, HTTP status, and sanitized failure. Never log provider cookies or authorization data. |
+| FlareSolverr | Deployment endpoint discovered from runtime configuration | Emit or collect startup, Chrome/session, challenge, timeout, retry, and terminal errors. Correlate with provider and trace IDs supplied by the caller. Do not store challenge cookies. |
+| Windmill | `192.168.10.170:8001` | Windmill scripts/flows send structured GELF to the authenticated application input and propagate `trace_id`, `run_id`, and `windmill_job_id` through every step. |
+| Emby/plugin | Resolve base URL from the deployed Windmill/MetaTube secret or resource, not a hard-coded address | Plugin/client propagates correlation headers and reports identify, metadata merge, image, save, refresh, and downstream result events. It does not receive Graylog credentials. |
+| Nginx Proxy Manager / reverse proxy | Current NPM host and proxy configuration | Forward access/error logs through Vector/container collection with upstream service, host, path template, status, latency, and request/correlation ID. Redact cookies, authorization, and query secrets. |
+| Kraken/container host | `192.168.10.170`; Vector fan-out configuration under `/mnt/cache_nvme_apps/appdata/observability/vector/vector.yaml` | Vector collects Docker/container stdout and sends authenticated GELF to `12202`; enrich with server, container, image, compose project, and application fields. |
+| Other MetaTube/provider hosts | Discover from deployment inventory/configuration | Install the same Vector or GELF sender contract and set a stable `server`/`node` field so one trace can be followed across machines. |
+
+Do not hard-code deployment addresses in application logic. The addresses
+above document the current topology for operators; runtime URLs and credentials
+must come from configuration/secrets. Record the resolved non-secret endpoint
+and node name in health/status output so configuration drift is visible.
+
+Required common GELF fields, in addition to the correlation fields listed
+later, are: `application`, `service`, `server`, `node`, `environment`,
+`source_type`, `logger`, and `version`. Each integration must preserve the
+original timestamp, use UTC, and keep a short human-readable message. Long or
+structured details belong in sanitized fields and must respect the configured
+4 MiB collector limit.
+
+The implementation handoff must include:
+
+1. MetaTube GELF sender with bounded timeout, retry/backoff, local failure
+   accounting, and no impact on the lookup response when Graylog is down.
+2. Server-side Graylog search adapter using a least-privilege Graylog API/service
+   token (not the ingestion token and not a regular user password).
+3. Health/status cards for ingestion reachability, last successful send, failed
+   send count, queued/dropped count, last successful search, and token/config
+   presence without revealing secret values.
+4. A correlation test spanning MetaTube, one provider/bridge request,
+   FlareSolverr when involved, Windmill, and the downstream Emby report.
+5. Retention/restart verification proving Graylog evidence remains searchable
+   after each source service restarts.
 
 #### Required combined run-log experience
 
