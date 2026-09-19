@@ -779,4 +779,45 @@ request -> normalize/cache/database -> throttle -> provider attempt(s)
 5. Emby plugin reporting and end-to-end tests.
 
 Do not claim full end-to-end completion after steps 1–3. Until Windmill and Emby
+
+## Graylog integration status
+
+Implemented on this branch (see `deployment/README.md` for the operator
+commands):
+
+1. **MetaTube GELF sender** (`internal/gelf`): every structured trace record is
+   mirrored to the authenticated GELF HTTP input with `application`, `service`,
+   `server`, `node`, `environment`, `source_type`, `logger`, `version` plus the
+   correlation fields (`trace_id`, `run_id`, `parent_trace_id`,
+   `windmill_job_id`, `emby_item_id`, `client`, `component`, `stage`,
+   `provider`, `attempt`, `duration_ms`, `http_status`). Delivery runs off the
+   request path through a bounded queue, retries transient failures only, and
+   counts drops, so an unreachable Graylog can never delay or fail a lookup.
+   Records preserve the original UTC timestamp and are redacted and bounded
+   before they are sent.
+2. **Server-side search adapter** (`internal/logsearch`): searches
+   `/api/search/universal/absolute` with a least-privilege API token that is not
+   the ingestion token and not a user password. Both tokens can be mounted from
+   file secrets (`METATUBE_GRAYLOG_TOKEN_FILE`, `METATUBE_GELF_TOKEN_FILE`).
+   The window (24 h default), the result count (200/500) and the timeout (5 s)
+   are clamped server-side, and the adapter reports one status per source.
+3. **Health/status cards**: `/admin/api/gelf` and the ingestion strip on both
+   trace tabs report reachability of the last probe, last successful send,
+   failed and dropped counts, queue depth, last successful search and
+   token/config presence (never a value). `POST /admin/api/gelf/probe` sends one
+   probe record.
+4. **Correlation test**: `internal/trace/mirror_test.go` proves start, step and
+   finish records carry the run context, and the live smoke test confirms what
+   the GELF input receives.
+5. **Retention/restart**: Graylog is durable and independent of a MetaTube
+   restart; the native buffer is labelled `Recent logs; cleared on restart`, and
+   `traces.db` keeps the authoritative timeline.
+
+Deployed on Kraken against Graylog 7.1.8 (`192.168.10.153`, API
+`https://graylog.madtechinc.com`, GELF `12201` application / `12202`
+Vector/container). The search credential uses the dedicated `metatube-search`
+account with the `MetaTube Search Reader` role (search permissions only; a write
+attempt returns HTTP 403), and Graylog 7 needs `sort=timestamp:desc` with an
+explicit `order`, which the adapter sends.
+
 report their stages, the UI must say downstream status is unavailable.

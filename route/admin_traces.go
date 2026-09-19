@@ -76,7 +76,7 @@ func (l *ingestLimiter) allow(key string) bool {
 }
 
 // registerTraceRoutes wires the enrichment trace admin APIs under /admin.
-func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service, logs *logsearch.Searcher) {
+func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service, logs *logsearch.Searcher, mirror LogMirror) {
 	limiter := newIngestLimiter(trace.DefaultIngestBurstPerClient, trace.DefaultIngestRefillPerSecond)
 	group := admin.Group("/api/traces")
 	{
@@ -89,7 +89,7 @@ func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service, logs *l
 		group.DELETE("/:traceID", deleteTrace(service))
 		group.POST("/purge-expired", ingestionGuard(limiter), postTracePurge(service))
 	}
-	admin.GET("/api/trace-stats", getTraceStats(service, logs))
+	admin.GET("/api/trace-stats", getTraceStats(service, logs, mirror))
 }
 
 // ingestionGuard applies body limits and rate limiting to ingest endpoints.
@@ -220,9 +220,12 @@ func postTraceStart(service *trace.Service) gin.HandlerFunc {
 			clientName = c.GetHeader(headerClient)
 		}
 		handle, started := service.Start(trace.StartInput{
-			TraceID:          body.TraceID,
-			ParentTraceID:    body.ParentTraceID,
-			RunID:            firstNonEmpty(firstNonEmpty(body.RunID, c.GetHeader(headerRunID)), body.WindmillJobID),
+			TraceID:       body.TraceID,
+			ParentTraceID: body.ParentTraceID,
+			// Only an explicit run id (body or header) is stored here: a
+			// Windmill job still groups traces through the run resolver's
+			// documented priority, and `grouped_by` stays truthful.
+			RunID:            firstNonEmpty(body.RunID, c.GetHeader(headerRunID)),
 			Kind:             body.Kind,
 			Operation:        body.Operation,
 			Query:            body.Query,
@@ -478,12 +481,13 @@ func postTracePurge(service *trace.Service) gin.HandlerFunc {
 
 // getTraceStats reports trace bookkeeping, the effective configuration, and the
 // log-search availability so the UI can render both without guessing.
-func getTraceStats(service *trace.Service, logs *logsearch.Searcher) gin.HandlerFunc {
+func getTraceStats(service *trace.Service, logs *logsearch.Searcher, mirror LogMirror) gin.HandlerFunc {
 	cfg := service.Config()
 	graylog := logs.GraylogConfig()
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"enabled":                 service.Enabled(),
+			"mirror_enabled":          service.MirrorEnabled(),
 			"retention_days":          cfg.RetentionDays,
 			"max_runs":                cfg.MaxRuns,
 			"max_events_per_run":      cfg.MaxEventsPerRun,
@@ -502,6 +506,7 @@ func getTraceStats(service *trace.Service, logs *logsearch.Searcher) gin.Handler
 				"graylog_missing_token": graylog.EnabledWithoutToken(),
 				"graylog_external_url":  graylog.ExternalURL,
 			},
+			"ingestion": ingestionStats(mirror),
 			"tabs": []string{
 				"LOGS-METATUBE-VIDEO",
 				"LOGS-METATUBE-ACTOR",

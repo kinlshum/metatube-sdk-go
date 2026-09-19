@@ -110,7 +110,8 @@ func getAdminLogSearch(searcher *logsearch.Searcher) gin.HandlerFunc {
 				"max_range_hours":   cfg.MaxRangeHours,
 				"timeout_seconds":   int(cfg.Timeout.Seconds()),
 				"search_api":        "search/universal/absolute",
-				"credential_source": "METATUBE_GRAYLOG_TOKEN (server-side only)",
+				"credential_source": cfg.TokenSourceLabel(),
+				"credential_error":  cfg.TokenFileErr,
 			},
 			"retention": gin.H{
 				"native":  logsearch.NativeRetention,

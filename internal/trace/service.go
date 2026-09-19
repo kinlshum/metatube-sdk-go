@@ -31,6 +31,12 @@ type Service struct {
 	count map[string]uint64
 	seq   map[string]uint64
 
+	// mirror is an optional durable log mirror (Graylog GELF). It is called
+	// synchronously, so it must never block; mirrorRuns caches the run-level
+	// correlation fields used to enrich mirrored records.
+	mirror     Mirror
+	mirrorRuns map[string]Run
+
 	counters counters
 
 	stopOnce sync.Once
@@ -52,11 +58,12 @@ type counters struct {
 // consumers so that tracing stays opt-in and silent.
 func Disabled() *Service {
 	return &Service{
-		cfg:   Config{}.WithDefaults(),
-		runs:  make(map[string]*RunHandle),
-		count: make(map[string]uint64),
-		seq:   make(map[string]uint64),
-		stop:  make(chan struct{}),
+		cfg:        Config{}.WithDefaults(),
+		runs:       make(map[string]*RunHandle),
+		count:      make(map[string]uint64),
+		seq:        make(map[string]uint64),
+		mirrorRuns: make(map[string]Run),
+		stop:       make(chan struct{}),
 	}
 }
 
@@ -66,11 +73,12 @@ func Disabled() *Service {
 func NewService(cfg Config) *Service {
 	cfg = cfg.WithDefaults()
 	service := &Service{
-		cfg:   cfg,
-		runs:  make(map[string]*RunHandle),
-		count: make(map[string]uint64),
-		seq:   make(map[string]uint64),
-		stop:  make(chan struct{}),
+		cfg:        cfg,
+		runs:       make(map[string]*RunHandle),
+		count:      make(map[string]uint64),
+		seq:        make(map[string]uint64),
+		mirrorRuns: make(map[string]Run),
+		stop:       make(chan struct{}),
 	}
 	if !cfg.Enabled {
 		traceLog.Printf("disabled (METATUBE_TRACE_ENABLED=false)")
@@ -185,6 +193,22 @@ func (s *Service) Start(input StartInput) (*RunHandle, bool) {
 	s.mu.Lock()
 	s.runs[traceID] = handle
 	s.mu.Unlock()
+	if s.MirrorEnabled() {
+		s.cacheMirrorRun(run)
+		s.mirrorEvent(mirrorRecord(run, Event{
+			At:        now,
+			Level:     LevelInfo,
+			Component: ComponentMetaTube,
+			Stage:     StageRequestReceived,
+			Message:   "trace started",
+			Details: JSONMap{
+				"created":          created,
+				"kind":             run.Kind,
+				"operation":        run.Operation,
+				"normalized_query": run.NormalizedQuery,
+			},
+		}))
+	}
 	return handle, true
 }
 
@@ -268,6 +292,9 @@ func (s *Service) appendEvent(traceID string, event Event) (Event, bool) {
 	}
 	s.counters.eventsStored.Add(1)
 	s.bumpRun(traceID, event.Level, downstreamSignal(event.Component, event.Level))
+	if s.MirrorEnabled() {
+		s.mirrorEvent(mirrorRecord(s.mirrorRun(traceID), event))
+	}
 	return event, true
 }
 
@@ -324,6 +351,9 @@ func (s *Service) trimCachesLocked() {
 	}
 	if len(s.seq) > maxCachedTraces {
 		s.seq = make(map[string]uint64)
+	}
+	if len(s.mirrorRuns) > maxCachedTraces {
+		s.mirrorRuns = make(map[string]Run)
 	}
 }
 
@@ -415,6 +445,28 @@ func (s *Service) Finish(traceID string, input FinishInput) (*Run, error) {
 	updated, err := s.store.GetRun(traceID)
 	if err != nil {
 		return nil, err
+	}
+	if s.MirrorEnabled() {
+		s.cacheMirrorRun(*updated)
+		details := JSONMap{
+			"status":            updated.Status,
+			"duration_ms":       updated.DurationMS,
+			"selected_provider": updated.SelectedProvider,
+			"result_count":      updated.ResultCount,
+		}
+		if updated.ErrorCode != "" {
+			details["error_code"] = updated.ErrorCode
+		}
+		s.mirrorEvent(mirrorRecord(*updated, Event{
+			At:         now,
+			Level:      mirrorStatusLevel(updated.Status),
+			Component:  ComponentMetaTube,
+			Stage:      StageCompleted,
+			Provider:   updated.SelectedProvider,
+			DurationMS: updated.DurationMS,
+			Message:    "trace finished: status=" + updated.Status,
+			Details:    details,
+		}))
 	}
 	return updated, nil
 }

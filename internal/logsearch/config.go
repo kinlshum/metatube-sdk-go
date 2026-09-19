@@ -19,6 +19,10 @@ const (
 	// GraylogTokenEnv holds the API token. It is server-side only and never
 	// reaches the browser, a response, an export, a log, or a URL.
 	GraylogTokenEnv = "METATUBE_GRAYLOG_TOKEN"
+	// GraylogTokenFileEnv points at a file holding the API token, so the token can
+	// live in a Docker/host secret instead of the process environment. A readable
+	// file wins over GraylogTokenEnv.
+	GraylogTokenFileEnv = "METATUBE_GRAYLOG_TOKEN_FILE"
 	// GraylogExternalURLEnv is the browser-facing Graylog base used to build
 	// deep links.
 	GraylogExternalURLEnv = "METATUBE_GRAYLOG_EXTERNAL_URL"
@@ -46,11 +50,17 @@ type GraylogConfig struct {
 	Timeout       time.Duration
 	MaxResults    int
 	MaxRangeHours int
+
+	// TokenFile records where the token was read from, so status output can name
+	// the secret in use without revealing it. TokenFileErr reports an unreadable
+	// token file.
+	TokenFile    string
+	TokenFileErr string
 }
 
 // GraylogConfigFromEnv reads the METATUBE_GRAYLOG_* variables.
 func GraylogConfigFromEnv() GraylogConfig {
-	return GraylogConfig{
+	config := GraylogConfig{
 		Enabled:       envBool(GraylogEnabledEnv, false),
 		APIURL:        strings.TrimSpace(os.Getenv(GraylogAPIURLEnv)),
 		StreamID:      strings.TrimSpace(os.Getenv(GraylogStreamIDEnv)),
@@ -59,7 +69,26 @@ func GraylogConfigFromEnv() GraylogConfig {
 		Timeout:       time.Duration(envInt(GraylogTimeoutEnv, int(defaultGraylogTimeout/time.Second))) * time.Second,
 		MaxResults:    envInt(GraylogMaxResultsEnv, defaultGraylogMaxResult),
 		MaxRangeHours: envInt(GraylogMaxRangeHoursEnv, defaultGraylogMaxRange),
-	}.WithDefaults()
+	}
+	if path := strings.TrimSpace(os.Getenv(GraylogTokenFileEnv)); path != "" {
+		config.TokenFile = path
+		if content, err := os.ReadFile(path); err == nil {
+			config.Token = strings.TrimSpace(string(content))
+		} else if config.Token == "" {
+			// The message is built from the path only, never from content.
+			config.TokenFileErr = err.Error()
+		}
+	}
+	return config.WithDefaults()
+}
+
+// TokenSourceLabel names the secret the adapter reads its API token from,
+// without revealing the token itself.
+func (c GraylogConfig) TokenSourceLabel() string {
+	if c.TokenFile != "" {
+		return GraylogTokenFileEnv + " (" + c.TokenFile + ")"
+	}
+	return GraylogTokenEnv + " (server-side only)"
 }
 
 // WithDefaults fills in missing or out-of-range values.

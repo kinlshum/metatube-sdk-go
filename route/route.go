@@ -18,7 +18,39 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
 )
 
-func New(app *engine.Engine, v auth.Validator) *gin.Engine {
+// Option customizes the HTTP router. Options keep the default wiring (and every
+// existing caller) unchanged.
+type Option func(*routerOptions)
+
+// routerOptions holds the optional dependencies the router reports on.
+type routerOptions struct {
+	// mirror is the optional durable log sender (Graylog GELF). It is attached
+	// to the trace service so the status and probe endpoints describe the exact
+	// instance that is sending records.
+	mirror LogMirror
+}
+
+// WithLogMirror attaches an optional Graylog GELF sender. The sender is also
+// attached to the trace service as its log mirror, so the admin status comes
+// from the same object that delivers records.
+func WithLogMirror(mirror LogMirror) Option {
+	return func(options *routerOptions) { options.mirror = mirror }
+}
+
+func New(app *engine.Engine, v auth.Validator, options ...Option) *gin.Engine {
+	settings := &routerOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(settings)
+		}
+	}
+	if settings.mirror != nil {
+		// A mirror must never change lookup behaviour: the trace service treats
+		// it as best-effort and the sender queues everything off the request
+		// path.
+		app.TraceService().SetMirror(settings.mirror)
+	}
+
 	app.StartProviderHealthChecks()
 	r := gin.New()
 	{
@@ -59,7 +91,9 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	admin.GET("/api/logs", getAdminLogs(logs))
 	admin.GET("/api/logs/search", getAdminLogSearch(logs))
 	admin.GET("/api/trace-runs/:runID", getTraceRun(app.TraceService()))
-	registerTraceRoutes(admin, app.TraceService(), logs)
+	admin.GET("/api/gelf", getLogIngestion(settings.mirror))
+	admin.POST("/api/gelf/probe", postLogProbe(settings.mirror))
+	registerTraceRoutes(admin, app.TraceService(), logs, settings.mirror)
 
 	system := r.Group("/v1", cacheNoStore())
 	{

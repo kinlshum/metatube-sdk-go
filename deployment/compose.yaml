@@ -78,6 +78,32 @@ services:
       METATUBE_TRACE_RETENTION_DAYS: "30"
       METATUBE_TRACE_MAX_RUNS: "10000"
       METATUBE_TRACE_MAX_EVENTS_PER_RUN: "500"
+      # Durable cross-service diagnostics (Graylog). Both credentials are mounted
+      # as Docker secrets below and are never placed in the environment, a
+      # response, or a log. An empty secret file keeps the features visible in
+      # the admin UI while reporting "not configured".
+      METATUBE_GRAYLOG_ENABLED: ${METATUBE_GRAYLOG_ENABLED:-false}
+      METATUBE_GRAYLOG_API_URL: ${METATUBE_GRAYLOG_API_URL:-https://graylog.madtechinc.com/api}
+      METATUBE_GRAYLOG_EXTERNAL_URL: ${METATUBE_GRAYLOG_EXTERNAL_URL:-https://graylog.madtechinc.com}
+      METATUBE_GRAYLOG_STREAM_ID: ${METATUBE_GRAYLOG_STREAM_ID:-}
+      METATUBE_GRAYLOG_TOKEN_FILE: /run/secrets/graylog_search_token
+      METATUBE_GRAYLOG_TIMEOUT_SECONDS: "5"
+      METATUBE_GRAYLOG_MAX_RESULTS: "200"
+      METATUBE_GRAYLOG_MAX_RANGE_HOURS: "24"
+      # Structured GELF mirror: every trace record is also stored in Graylog so a
+      # run can be followed across MetaTube, the bridge, FlareSolverr, Windmill,
+      # the reverse proxy and the Emby report.
+      METATUBE_GELF_ENABLED: ${METATUBE_GELF_ENABLED:-false}
+      METATUBE_GELF_URL: ${METATUBE_GELF_URL:-http://192.168.10.153:12201/gelf}
+      METATUBE_GELF_TOKEN_FILE: /run/secrets/gelf_ingest_token
+      METATUBE_GELF_APPLICATION: metatube
+      METATUBE_GELF_SERVICE: metatube-server
+      METATUBE_GELF_SERVER: ${METATUBE_GELF_SERVER:-kraken}
+      METATUBE_GELF_NODE: ${METATUBE_GELF_NODE:-kraken-docker}
+      METATUBE_GELF_ENVIRONMENT: ${METATUBE_GELF_ENVIRONMENT:-homelab}
+      METATUBE_GELF_TIMEOUT_SECONDS: "3"
+      METATUBE_GELF_QUEUE: "512"
+      METATUBE_GELF_MAX_RETRIES: "2"
       MT_ACTOR_PROVIDER_AV_LEAGUE__PRIORITY: "1003"
       MT_ACTOR_PROVIDER_XSLIST__PRIORITY: "1002"
       MT_ACTOR_PROVIDER_MINNANO_AV__PRIORITY: "1001"
@@ -95,6 +121,11 @@ services:
       MT_MOVIE_PROVIDER_THEPORNDBSCENE__PRIORITY: "0"
     volumes:
       - /mnt/cache_nvme_apps/appdata/metatube-server-charleshuang233:/config
+    secrets:
+      - source: graylog_search_token
+        target: graylog_search_token
+      - source: gelf_ingest_token
+        target: gelf_ingest_token
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,3 +141,14 @@ networks:
     name: metatube_internal
   br0:
     external: true
+
+# Graylog credentials. Each file must exist before `docker compose up`; an empty
+# file is valid and simply reports the feature as "not configured".
+#   ./secrets/graylog_search_token  least-privilege Graylog API/service token used
+#                                   by the server-side search adapter
+#   ./secrets/gelf_ingest_token     GELF ingestion token sent as X-Graylog-Token
+secrets:
+  graylog_search_token:
+    file: ./secrets/graylog_search_token
+  gelf_ingest_token:
+    file: ./secrets/gelf_ingest_token

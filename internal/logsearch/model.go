@@ -122,6 +122,15 @@ type Line struct {
 	WindmillJob string    `json:"windmill_job_id,omitempty"`
 	Message     string    `json:"message"`
 	Fingerprint string    `json:"fingerprint"`
+
+	// Origin fields are only present for lines that come from another service.
+	// They let one run be followed across machines, containers and services.
+	Application string `json:"application,omitempty"`
+	Service     string `json:"service,omitempty"`
+	Server      string `json:"server,omitempty"`
+	Node        string `json:"node,omitempty"`
+	Environment string `json:"environment,omitempty"`
+	SourceType  string `json:"source_type,omitempty"`
 }
 
 // Result is one backend's answer for a query.

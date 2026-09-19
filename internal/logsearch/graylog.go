@@ -20,6 +20,7 @@ var graylogFields = []string{
 	"timestamp",
 	"message",
 	"level",
+	"log_level",
 	"component",
 	"stage",
 	"provider",
@@ -33,6 +34,13 @@ var graylogFields = []string{
 	"emby_item_id",
 	"client",
 	"container_name",
+	"application",
+	"service",
+	"server",
+	"node",
+	"environment",
+	"source_type",
+	"logger",
 }
 
 // graylogTimeFormat is the format Graylog accepts and returns for absolute
@@ -230,7 +238,11 @@ func (b *GraylogBackend) searchURL(query string, since, until *time.Time, limit 
 		values.Set("to", until.UTC().Format(graylogTimeFormat))
 	}
 	values.Set("limit", strconv.Itoa(limit))
+	// Graylog 7 requires the `<field>:<direction>` sort form and an explicit
+	// order; `sort=timestamp` alone is rejected with HTTP 500.
 	values.Set("sort", "timestamp:desc")
+	values.Set("order", "desc")
+	values.Set("decorate", "false")
 	values.Set("fields", strings.Join(graylogFields, ","))
 	return endpoint + "?" + values.Encode()
 }
@@ -276,10 +288,20 @@ func graylogLine(fields map[string]any) Line {
 		Badge:  SourceBadge(SourceGraylog),
 		At:     graylogTimestamp(fields["timestamp"]),
 	}
-	line.Level = trace.SanitizeString(stringField(fields, "level"))
+	line.Level = trace.SanitizeString(stringField(fields, "log_level"))
+	if line.Level == "" {
+		// GELF's own `level` is numeric (syslog); map it back to a name.
+		line.Level = graylogLevelName(stringField(fields, "level"))
+	}
 	line.Component = trace.SanitizeString(stringField(fields, "component"))
 	line.Stage = trace.SanitizeString(stringField(fields, "stage"))
 	line.Provider = trace.SanitizeString(stringField(fields, "provider"))
+	line.Application = trace.SanitizeString(stringField(fields, "application"))
+	line.Service = trace.SanitizeString(stringField(fields, "service"))
+	line.Server = trace.SanitizeString(stringField(fields, "server"))
+	line.Node = trace.SanitizeString(stringField(fields, "node"))
+	line.Environment = trace.SanitizeString(stringField(fields, "environment"))
+	line.SourceType = trace.SanitizeString(stringField(fields, "source_type"))
 	line.TraceID = trace.NormalizeID(stringField(fields, "trace_id"))
 	line.RunID = trace.NormalizeID(stringField(fields, "run_id"))
 	line.WindmillJob = trace.NormalizeID(stringField(fields, "windmill_job_id"))
@@ -290,6 +312,22 @@ func graylogLine(fields map[string]any) Line {
 	}
 	line.Fingerprint = Fingerprint(SourceGraylog, line.At, line.Level, line.Component, line.TraceID, line.Message)
 	return line
+}
+
+// graylogLevelName maps the numeric GELF level back onto a trace level name so
+// the same filters work against every backend.
+func graylogLevelName(value string) string {
+	switch strings.TrimSpace(value) {
+	case "0", "1", "2", "3":
+		return trace.LevelError
+	case "4":
+		return trace.LevelWarn
+	case "5", "6":
+		return trace.LevelInfo
+	case "7":
+		return trace.LevelDebug
+	}
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func summarizeFields(fields map[string]any) []string {

@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 )
 
 func TestGraylogNotConfigured(t *testing.T) {
@@ -170,6 +173,79 @@ func TestGraylogRangeIsClamped(t *testing.T) {
 	require.NotNil(t, to)
 	assert.True(t, clamped)
 	assert.LessOrEqual(t, to.Sub(*from), 6*time.Hour)
+}
+
+func TestGraylogSearchURLUsesGraylogSevenParameters(t *testing.T) {
+	backend := NewGraylogBackend(GraylogConfig{
+		Enabled:  true,
+		APIURL:   "https://graylog.madtechinc.com/api",
+		Token:    "search-token",
+		StreamID: "000000000000000000000001",
+	}.WithDefaults())
+
+	since := time.Date(2026, 9, 19, 10, 0, 0, 0, time.UTC)
+	until := since.Add(10 * time.Minute)
+	query := backend.buildQuery(Query{TraceIDs: []string{"trace-aaaa-1111"}, RunID: "run-aaaa-1111"})
+	target := backend.searchURL(query, &since, &until, 25)
+	parsed, err := url.Parse(target)
+	require.NoError(t, err)
+	values := parsed.Query()
+
+	// Graylog 7 rejects `sort=timestamp` with HTTP 500, so the field:direction
+	// form and an explicit order are mandatory.
+	assert.Equal(t, "timestamp:desc", values.Get("sort"))
+	assert.Equal(t, "desc", values.Get("order"))
+	assert.Equal(t, "false", values.Get("decorate"))
+	assert.Equal(t, "25", values.Get("limit"))
+	assert.NotEmpty(t, values.Get("from"))
+	assert.NotEmpty(t, values.Get("to"))
+	assert.Contains(t, values.Get("query"), `trace_id:"trace-aaaa-1111"`)
+	assert.Contains(t, values.Get("query"), `run_id:"run-aaaa-1111"`)
+	assert.Contains(t, values.Get("query"), "stream:")
+
+	// The token never travels in the URL.
+	assert.NotContains(t, target, "search-token")
+	assert.NotContains(t, values.Get("fields"), "token")
+	assert.Contains(t, values.Get("fields"), "application")
+}
+
+func TestGraylogLineReadsOriginAndLevel(t *testing.T) {
+	line := graylogLine(map[string]any{
+		"timestamp":       "2026-09-19T10:00:00.000Z",
+		"message":         "provider responded",
+		"level":           float64(6),
+		"application":     "metatube",
+		"service":         "metatube-server",
+		"server":          "kraken",
+		"node":            "kraken-docker",
+		"environment":     "homelab",
+		"source_type":     "trace",
+		"component":       "provider",
+		"stage":           "provider_completed",
+		"provider":        "JavBus",
+		"trace_id":        "trace-aaaa-1111",
+		"run_id":          "run-aaaa-1111",
+		"windmill_job_id": "job-aaaa-1111",
+	})
+
+	// A numeric GELF level is mapped back to a name so the same filters match.
+	assert.Equal(t, trace.LevelInfo, line.Level)
+	assert.Equal(t, "metatube", line.Application)
+	assert.Equal(t, "kraken", line.Server)
+	assert.Equal(t, "kraken-docker", line.Node)
+	assert.Equal(t, "homelab", line.Environment)
+	assert.Equal(t, "trace", line.SourceType)
+	assert.Equal(t, "trace-aaaa-1111", line.TraceID)
+	assert.Equal(t, "run-aaaa-1111", line.RunID)
+	assert.Equal(t, "job-aaaa-1111", line.WindmillJob)
+	assert.NotEmpty(t, line.Fingerprint)
+
+	// An explicit log_level wins over the numeric syslog level.
+	explicit := graylogLine(map[string]any{"level": float64(6), "log_level": trace.LevelError})
+	assert.Equal(t, trace.LevelError, explicit.Level)
+	assert.Equal(t, trace.LevelError, graylogLevelName("3"))
+	assert.Equal(t, trace.LevelWarn, graylogLevelName("4"))
+	assert.Equal(t, trace.LevelDebug, graylogLevelName("7"))
 }
 
 func TestDeduplicateKeepsTraceEvents(t *testing.T) {

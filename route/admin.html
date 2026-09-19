@@ -42,6 +42,35 @@
     .field-changes th,.field-changes td{padding:4px 8px;font-size:12px;border-bottom:1px solid #233c30}
     .pager{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}.pager .spacer{flex:1}.pager button{padding:7px 12px}
     .mono{font:12px/1.5 ui-monospace,SFMono-Regular,monospace;word-break:break-all}
+    .ingestion-strip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;background:#122019;border-bottom:1px solid var(--line)}
+    .ingestion-strip .stat{color:var(--muted);font-size:12px}.ingestion-strip .stat b{color:var(--text);font-weight:700}
+    .ingestion-strip button{padding:6px 11px;font-size:12px}
+    .run-panel{padding:0 18px 6px}
+    .run-head{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:11px 13px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;margin:12px 0 8px;font-size:13px}
+    .run-tree{border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:12px}
+    .run-node{border-top:1px solid #233c30}.run-node:first-child{border-top:0}
+    .run-node>summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 13px;cursor:pointer;font-size:13px;list-style:none}
+    .run-node>summary::-webkit-details-marker{display:none}.run-node[open]>summary{background:#16281f}
+    .step{border-top:1px dashed #233c30}
+    .step>summary{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:7px 13px 7px 24px;cursor:pointer;font-size:12px;list-style:none}
+    .step>summary::-webkit-details-marker{display:none}.step[open]>summary{background:#14241c}
+    .step .at{color:var(--muted);min-width:74px;font-variant-numeric:tabular-nums}.step .stage{font-weight:650}.step .dur{color:var(--muted);margin-left:auto}
+    .step-body{padding:2px 13px 12px 24px}
+    .log-panel{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:6px}
+    .log-panel .log-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 11px;background:#16281f;border-bottom:1px solid var(--line);font-size:12px}
+    .log-panel input[type=text]{padding:5px 8px;font-size:12px;min-width:150px}
+    .log-panel label{display:flex;align-items:center;gap:5px;color:var(--muted)}
+    .log-panel .log-body{max-height:300px;overflow:auto;background:#080d0b;font:12px/1.55 ui-monospace,SFMono-Regular,monospace}
+    .log-line{display:grid;grid-template-columns:74px 66px 1fr;gap:8px;padding:4px 11px;border-top:1px solid #16241c;white-space:pre-wrap;word-break:break-word}
+    .log-line .at{color:#7f9c8b}.log-line.err{background:#231115;color:#ffb4b4}
+    .source-badge{border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+    .source-badge.trace{background:#1d4030;color:#8fe3ab;border-color:#2f6a49}
+    .source-badge.native{background:#27332c;color:#b7c8bd;border-color:#3d5045}
+    .source-badge.graylog{background:#3a2f4a;color:#d7b8ff;border-color:#5d4a7a}
+    .log-section{border-top:1px solid #16241c}
+    .log-section>.head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:7px 11px;background:#0e1a13}
+    .log-section .empty{padding:8px 11px;color:var(--muted);font-size:12px}
+    .deep-link{color:var(--green2);font-size:12px;text-decoration:none}
     @media(max-width:900px){.test-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){main{padding:14px}header{padding:13px 16px;flex-wrap:wrap}.tabs{width:100%;margin:0}th,td{padding:11px 9px}input[type=number]{width:75px}.test-grid{grid-template-columns:1fr}}
   </style>
 </head>
@@ -77,6 +106,7 @@
   </section>
   <section id="traceVideoPage" class="card page hidden">
     <div class="intro"><h1>MetaTube video enrichment traces</h1><p>Structured lookup, identify, and enrichment timelines for movie work: client, providers, throttle waits, cache, fallback, selection, Windmill, and Emby. Kept separate from the general <b>LOGS</b> tab. <span class="live">Refreshes every 5 seconds while visible</span></p></div>
+    <div class="ingestion-strip" data-ingestion="video"></div>
     <div class="trace-toolbar">
       <input type="text" id="traceVideoQ" placeholder="Search query, provider ID, or trace ID…">
       <input type="text" id="traceVideoClient" placeholder="Client or IP">
@@ -97,6 +127,7 @@
   </section>
   <section id="traceActorPage" class="card page hidden">
     <div class="intro"><h1>MetaTube actor enrichment traces</h1><p>Structured actor identify and enrichment timelines: client, providers, throttle waits, cache, fallback, image injection, selection, Windmill, and Emby. Actor traces never appear in the video tab. <span class="live">Refreshes every 5 seconds while visible</span></p></div>
+    <div class="ingestion-strip" data-ingestion="actor"></div>
     <div class="trace-toolbar">
       <input type="text" id="traceActorQ" placeholder="Search name, provider ID, or trace ID…">
       <input type="text" id="traceActorClient" placeholder="Client or IP">
@@ -253,8 +284,10 @@
         ${traceMeta('Emby item',trace.emby_item_id?`<span class="mono">${esc(trace.emby_item_id)}</span>`:'—')}
         ${traceMeta('Errors',trace.error_count?`<span class="error">${esc(trace.error_code||'error')} · ${esc(trace.error_message||'')}</span>`:'0')}
         ${traceMeta('Downstream',traceDownstreamLabel(downstream))}
+        ${traceMeta('Run',trace.run_id?`<span class="mono">${esc(trace.run_id)}</span>${trace.windmill_job_id?`<div class="note mono">job ${esc(trace.windmill_job_id)}</div>`:''}`:'—')}
         ${traceMeta('Events',esc(trace.event_count||events.length))}
       </div>
+      <div class="run-panel" data-run-panel></div>
       ${summary?`<div class="note" style="padding:12px 18px 0">Stage totals: ${esc(summary)}</div>`:''}
       <div class="timeline">${groups.map(group=>`<section class="timeline-group"><h3><span aria-hidden="true">${group.icon}</span>${esc(group.label)}<span class="totals">${group.events.length} event(s) · ${traceMs(group.total)}</span></h3>${group.events.map(event=>`<div class="timeline-event ${event.level==='error'?'err':''}"><span class="note">${new Date(event.at).toLocaleTimeString()}</span><span class="stage">${esc(event.stage||'')}</span><span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span><span class="detail">${traceEventDetail(event)}</span></div>`).join('')}</section>`).join('')||'<div class="note">No events recorded for this trace.</div>'}</div>`}
   async function openTrace(kind,traceId,scroll){const state=traceState[kind];state.open=traceId;const drawer=traceEl(kind,'Drawer');
@@ -265,12 +298,18 @@
       const r=await fetch('/admin/api/traces/'+encodeURIComponent(traceId));
       if(!r.ok)throw Error(r.status===404?'Trace not found (it may have been pruned or deleted).':`HTTP ${r.status}`);
       const data=(await r.json()).data||{};
-      drawer.innerHTML=renderTraceDrawer(kind,data.trace||data,data.downstream||{});
+      const trace=data.trace||data;
+      drawer.innerHTML=renderTraceDrawer(kind,trace,data.downstream||{});
       drawer.querySelector('[data-action="copy"]').addEventListener('click',()=>copyTraceId(traceId,kind));
       drawer.querySelector('[data-action="export"]').addEventListener('click',()=>window.open('/admin/api/traces/'+encodeURIComponent(traceId)+'/export','_blank'));
       drawer.querySelector('[data-action="logs"]').addEventListener('click',()=>showTraceInLogs(traceId));
       drawer.querySelector('[data-action="delete"]').addEventListener('click',()=>deleteTrace(kind,traceId));
       drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind));
+      // The run panel groups every trace that explicitly belongs to this run so
+      // the reader can expand run -> trace -> step and correlate each step.
+      const key=runKeyOf(trace);
+      if(runState.key&&runState.key!==key){runState.key='';runState.group=null;runState.openTraces={};runState.openSteps={};runState.logs={}}
+      loadRun(kind,trace,true);
       drawer.scrollTop=previousScroll
     }catch(e){drawer.innerHTML=`<div class="drawer-head"><h2>Trace</h2><span class="grow"></span><button data-action="close" class="tab">Close</button></div><div class="note" style="padding:16px 18px">${esc(e.message)}</div>`;drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind))}}
   function copyTraceId(traceId,kind){const done=()=>{traceEl(kind,'StatusLine').textContent=`Copied ${traceId}`;setTimeout(()=>refreshTraces(kind),1600)};
@@ -298,11 +337,172 @@
     traceEl(kind,'Follow').addEventListener('change',()=>{const state=traceState[kind];if(traceEl(kind,'Follow').checked){state.offset=0;state.manual=true;refreshTraces(kind)}});
     traceEl(kind,'Rows').addEventListener('click',event=>{const row=event.target.closest('tr');if(row&&row.dataset.trace)openTrace(kind,row.dataset.trace,true)});
   });
+  // --- Graylog ingestion (GELF sender) status card ---
+  const ingestionState={stats:null,search:null,error:'',probing:false};
+  const INGESTION_META={ok:['ok','✔'],disabled:['idle','⊘'],not_configured:['warn','⚠'],degraded:['bad','✖']};
+  async function refreshIngestion(){
+    try{
+      const [ingest,stats]=await Promise.all([fetch('/admin/api/gelf'),fetch('/admin/api/trace-stats')]);
+      if(!ingest.ok)throw Error(`HTTP ${ingest.status}`);
+      const ingestJson=await ingest.json();
+      ingestionState.stats=(ingestJson.data||ingestJson).ingestion||{};
+      if(stats.ok){const statsJson=await stats.json();ingestionState.search=(statsJson.data||statsJson).logs||{}}
+      ingestionState.error=''
+    }catch(e){ingestionState.error=e.message}
+    drawIngestion()}
+  function ingestionStripHtml(){
+    const stats=ingestionState.stats||{},search=ingestionState.search||{},meta=INGESTION_META[stats.status]||['idle','•'];
+    const when=value=>value?new Date(value).toLocaleString():'never';
+    const searchBadge=search.graylog_configured?'ok':(search.graylog_enabled?'warn':'idle');
+    const link=search.graylog_configured&&search.graylog_external_url?`<a class="deep-link" href="${esc(search.graylog_external_url)}" target="_blank" rel="noopener">Open Graylog</a>`:'';
+    return `<span class="badge ${meta[0]}"><span aria-hidden="true">${meta[1]}</span>${esc(stats.status||'unknown')}</span>
+      <span class="stat">Ingestion <b>${esc(stats.host||'not configured')}</b> · server <b>${esc(stats.server||'—')}</b> · node <b>${esc(stats.node||'—')}</b> · env <b>${esc(stats.environment||'—')}</b></span>
+      <span class="stat">sent <b>${Number(stats.sent||0)}</b> · failed <b>${Number(stats.failed||0)}</b> · retried <b>${Number(stats.retried||0)}</b> · dropped <b>${Number(stats.dropped||0)}</b> · queue <b>${Number(stats.queue_depth||0)}/${Number(stats.queue_capacity||0)}</b></span>
+      <span class="stat">last send <b>${esc(when(stats.last_success_at))}</b> · token <b>${stats.token_present?'present':'missing'}</b> · timeout <b>${Number(stats.timeout_seconds||0)}s</b></span>
+      <span class="stat">Search <span class="badge ${searchBadge}">${search.graylog_configured?'Graylog search ready':(search.graylog_enabled?'Graylog token missing':'Graylog not configured')}</span> ${link}</span>
+      <button data-ingestion-probe ${ingestionState.probing?'disabled':''}>${ingestionState.probing?'Probing…':'Probe ingestion'}</button>
+      <span class="stat ${ingestionState.error?'error':''}">${esc(ingestionState.error||stats.detail||'')}${stats.probe_ran?` · probe ${stats.probe_ok?'reachable':'unreachable'} ${esc(when(stats.last_probe_at))}`:''}</span>`}
+  function drawIngestion(){
+    document.querySelectorAll('.ingestion-strip').forEach(strip=>{
+      strip.innerHTML=ingestionStripHtml();
+      strip.querySelector('[data-ingestion-probe]').addEventListener('click',event=>probeIngestion(event.target))})}
+  async function probeIngestion(button){
+    if(ingestionState.probing)return;
+    ingestionState.probing=true;drawIngestion();
+    try{
+      const r=await fetch('/admin/api/gelf/probe',{method:'POST'});
+      const body=await r.json().catch(()=>({}));
+      const data=body.data||body;
+      if(data.ingestion)ingestionState.stats=data.ingestion;
+      ingestionState.error=r.ok?'':(data.detail||`HTTP ${r.status}`)
+    }catch(e){ingestionState.error=e.message}
+    ingestionState.probing=false;drawIngestion()}
+
+  // --- expandable run -> trace -> step tree with step-scoped logs ---
+  const runState={key:'',group:null,downstream:[],awaiting:false,error:'',loading:false,openTraces:{},openSteps:{},logs:{}};
+  const GROUPED_BY_LABEL={run_id:'run id',windmill_job_id:'Windmill job',parent_trace_id:'parent trace',trace_id:'trace id'};
+  function runKeyOf(trace){return trace.run_id||trace.windmill_job_id||trace.parent_trace_id||trace.trace_id||''}
+  function stepKey(traceId,sequence){return traceId+':'+sequence}
+  function stepWindow(event){const start=new Date(event.at||Date.now());
+    if(Number.isNaN(start.getTime()))return{from:'',until:''};
+    const end=start.getTime()+Math.max(0,Number(event.duration_ms||0));
+    return{from:new Date(start.getTime()-2000).toISOString(),until:new Date(end.getTime()+2000).toISOString()}}
+  function stepNodeHtml(trace,event,position){const key=stepKey(trace.trace_id,event.sequence),window=stepWindow(event);
+    return `<details class="step" data-step="${esc(key)}" data-trace="${esc(trace.trace_id)}" data-seq="${Number(event.sequence||0)}" data-from="${esc(window.from)}" data-until="${esc(window.until)}"${runState.openSteps[key]?' open':''}>
+      <summary><span class="at">${new Date(event.at).toLocaleTimeString()}</span><span class="source-badge trace">TRACE</span>
+        <span class="stage">${esc(event.stage||'step '+(position+1))}</span>
+        <span class="note">${esc(event.component||'')}${event.provider?' · '+esc(event.provider):''}${event.message?' · '+esc(event.message):''}</span>
+        <span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span></summary>
+      <div class="step-body" data-step-body="${esc(key)}"><span class="note">Loading correlated logs…</span></div></details>`}
+  function runTraceNodeHtml(group,trace){const events=(group.events||[]).filter(event=>event.trace_id===trace.trace_id);
+    const steps=events.map((event,position)=>stepNodeHtml(trace,event,position)).join('')||'<div class="empty">No events recorded for this trace.</div>';
+    return `<details class="run-node" data-trace="${esc(trace.trace_id)}"${runState.openTraces[trace.trace_id]?' open':''}>
+      <summary><span class="source-badge trace">TRACE</span><span class="mono">${esc(trace.trace_id.slice(0,18))}</span>
+        ${traceStatusBadge(trace.status)}
+        <span class="note">${esc(trace.operation||'')}${trace.kind?' · '+esc(trace.kind):''}${trace.selected_provider?' · '+esc(trace.selected_provider):''}</span>
+        <span class="note" style="margin-left:auto">${events.length} event(s) · ${traceMs(trace.duration_ms)}${trace.parent_trace_id?' · child of '+esc(trace.parent_trace_id.slice(0,12)):''}</span></summary>
+      <div class="step-list">${steps}</div></details>`}
   function traceTabKind(tab){return tab==='traceActor'?'actor':tab==='traceVideo'?'video':''}
+
+  function renderRunPanel(kind){const drawer=traceEl(kind,'Drawer'),panel=drawer?drawer.querySelector('[data-run-panel]'):null;
+    if(!panel)return;
+    if(runState.loading&&!runState.group){panel.innerHTML='<div class="run-head"><span class="note">Grouping related traces for this run…</span></div>';return}
+    if(runState.error&&!runState.group){panel.innerHTML=`<div class="run-head"><span class="note">Run grouping unavailable: ${esc(runState.error)}</span></div>`;return}
+    const group=runState.group;if(!group)return;
+    const traces=group.traces||[],groupedBy=GROUPED_BY_LABEL[group.grouped_by]||esc(group.grouped_by||'trace id');
+    panel.innerHTML=`<div class="run-head"><span class="source-badge trace">RUN</span><span class="mono">${esc(group.run_id||'')}</span>
+        <span class="note">grouped by ${esc(groupedBy)}</span><span class="note">· ${traces.length} trace(s)${group.child_count?` · ${Number(group.child_count)} child`:''}</span>
+        ${runState.awaiting?'<span class="badge awaiting">Awaiting client report</span>':''}
+        ${group.truncated?'<span class="badge warn">trace list truncated</span>':''}
+        ${group.event_truncated?'<span class="badge warn">event list truncated</span>':''}
+        <span class="grow" style="flex:1"></span><button data-run-logs>Show run in LOGS</button><button data-run-refresh>Refresh run</button></div>
+      <div class="run-tree">${traces.map(trace=>runTraceNodeHtml(group,trace)).join('')||'<div class="empty">No traces in this run.</div>'}</div>`;
+    panel.querySelector('[data-run-logs]').addEventListener('click',()=>showTraceInLogs(group.run_id||''));
+    panel.querySelector('[data-run-refresh]').addEventListener('click',()=>{const trace=traces.find(item=>item.trace_id===runState.key)||traces[0];if(trace)loadRun(kind,trace,true)});
+    panel.addEventListener('toggle',event=>onRunToggle(kind,event),true)}
+  function onRunToggle(kind,event){const node=event.target;
+    if(node.classList.contains('run-node')){runState.openTraces[node.dataset.trace]=node.open}
+    else if(node.classList.contains('step')){runState.openSteps[node.dataset.step]=node.open;if(node.open)loadStepLogs(kind,node)}}
+  async function loadRun(kind,trace,force){const key=runKeyOf(trace);const drawer=traceEl(kind,'Drawer');
+    if(!key){const panel=drawer?drawer.querySelector('[data-run-panel]'):null;if(panel)panel.innerHTML='<div class="run-head"><span class="note">This trace has no run id, Windmill job, or parent trace, so it stands alone.</span></div>';return}
+    if(!force&&runState.key===key&&runState.group){renderRunPanel(kind);restoreOpenSteps(kind);return}
+    runState.key=key;runState.group=null;runState.error='';runState.loading=true;renderRunPanel(kind);
+    try{const r=await fetch('/admin/api/trace-runs/'+encodeURIComponent(key)+'?events=500');
+      if(r.status===404)throw Error('no grouped run found yet');
+      if(r.status===503)throw Error('tracing is disabled on this server');
+      if(!r.ok)throw Error(`HTTP ${r.status}`);
+      const body=await r.json(),data=body.data||body;
+      runState.group=data.run||{};runState.downstream=data.downstream||[];runState.awaiting=Boolean(data.awaiting_report);runState.error=''
+    }catch(e){runState.group=null;runState.error=e.message}
+    runState.loading=false;renderRunPanel(kind);restoreOpenSteps(kind)}
+  function restoreOpenSteps(kind){const drawer=traceEl(kind,'Drawer'),panel=drawer?drawer.querySelector('[data-run-panel]'):null;if(!panel)return;
+    panel.querySelectorAll('.step[open]').forEach(step=>{const state=runState.logs[step.dataset.step];if(!state||state.follow)loadStepLogs(kind,step)})}
+  function logLineHtml(line){const meta=[line.component,line.provider,line.stage].filter(Boolean).join(' · ');
+    const origin=[line.service||line.application,line.server&&line.server!==(line.service||line.application)?line.server:'',line.node].filter(Boolean).join(' @ ');
+    return `<div class="log-line ${line.level==='error'?'err':''}"><span class="at">${new Date(line.at).toLocaleTimeString()}</span>
+      <span class="source-badge ${esc(line.source||'native')}">${esc(line.badge||line.source||'')}</span>
+      <span>${esc(line.message||'')}${origin?` <span class="note">[${esc(origin)}]</span>`:''}${meta?` <span class="note">${esc(meta)}</span>`:''}</span></div>`}
+  function stepTraceLines(stepEl){const traceId=stepEl.dataset.trace,sequence=Number(stepEl.dataset.seq||0),group=runState.group||{};
+    return (group.events||[]).filter(event=>event.trace_id===traceId&&Number(event.sequence||0)===sequence).map(event=>({
+      source:'trace',badge:'TRACE',at:event.at,level:event.level,component:event.component,stage:event.stage,provider:event.provider,
+      message:(event.message||'')+(event.details&&Object.keys(event.details).length?` ${JSON.stringify(event.details)}`:'')}))}
+  function logSectionHtml(title,result,lines,hidden,note){const status=result?`${esc(result.status||'')}${result.truncated?' · truncated':''}${result.match_count?` · ${Number(result.match_count)} match(es)`:''}`:'';
+    const head=`<div class="head"><span class="source-badge ${esc((result&&result.source)||'native')}">${esc(title)}</span><span class="note">${status}</span>
+      <span class="note">${esc((result&&result.retention)||'')}</span>${note||''}${hidden?`<span class="note">· ${hidden} duplicate line(s) hidden</span>`:''}</div>`;
+    const body=lines.length?lines.map(logLineHtml).join(''):`<div class="empty">${esc((result&&result.detail)||'No matching lines in this window.')}</div>`;
+    return `<section class="log-section">${head}<div class="log-body">${body}</div></section>`}
+  async function loadStepLogs(kind,stepEl){const body=stepEl.querySelector('[data-step-body]');if(!body)return;
+    const key=stepEl.dataset.step,state=runState.logs[key]||(runState.logs[key]={from:stepEl.dataset.from,until:stepEl.dataset.until,data:null,error:'',filter:'',dedupe:true,follow:true});
+    body.innerHTML='<span class="note">Loading correlated logs…</span>';
+    try{const params=new URLSearchParams();params.set('trace_id',stepEl.dataset.trace);params.set('limit','100');
+      if(state.from)params.set('since',state.from);if(state.until)params.set('until',state.until);
+      params.append('source','native');params.append('source','graylog');
+      const r=await fetch('/admin/api/logs/search?'+params.toString());
+      if(!r.ok)throw Error(`HTTP ${r.status}`);
+      const payload=await r.json();state.data=payload.data||payload;state.error=''
+    }catch(e){state.data=null;state.error=e.message}
+  function renderStepLogs(kind,stepEl){const body=stepEl.querySelector('[data-step-body]');if(!body)return;
+    const state=runState.logs[stepEl.dataset.step];if(!state)return;
+    if(state.error||!state.data){body.innerHTML=`<div class="log-panel"><div class="log-head"><span class="note error">${esc(state.error||'Log search failed')}</span><span style="flex:1"></span><button data-step-refresh>Retry</button></div></div>`;
+      body.querySelector('[data-step-refresh]').addEventListener('click',()=>loadStepLogs(kind,stepEl));return}
+    const data=state.data,results=data.results||[];
+    const native=results.find(result=>result.source==='native'),graylog=results.find(result=>result.source==='graylog');
+    const pick=source=>{const result=results.find(item=>item.source===source);return (result&&result.lines)||[]};
+    const deduped=data.deduplicated||[],hiddenTotal=Object.values(data.hidden||{}).reduce((sum,count)=>sum+Number(count||0),0);
+    const filtered=lines=>lines.filter(line=>!state.filter||String(line.message||'').toLowerCase().includes(state.filter)||String(line.component||'').toLowerCase().includes(state.filter));
+    const logLines=state.dedupe?deduped:[...pick('native'),...pick('graylog')];
+    const traceLines=filtered(stepTraceLines(stepEl));
+    const graylogLink=graylog&&graylog.external_search_url?`<a class="deep-link" href="${esc(graylog.external_search_url)}" target="_blank" rel="noopener">Open this window in Graylog</a>`:'';
+    const graylogNote=graylog&&!graylog.configured?'<span class="badge warn">Graylog not configured</span>':'';
+    const graylogLines=filtered(state.dedupe?logLines.filter(line=>line.source!=='native'&&line.source!=='trace'):pick('graylog'));
+    const nativeLines=filtered(state.dedupe?logLines.filter(line=>line.source==='native'):pick('native'));
+    body.innerHTML=`<div class="log-panel" data-step-panel>
+      <div class="log-head"><span class="source-badge trace">STEP</span>
+        <span class="note">window ${esc(state.from||'')} → ${esc(state.until||'')}</span>
+        <input type="text" data-log-filter placeholder="Filter these lines…" value="${esc(state.filter)}">
+        <label><input type="checkbox" data-log-dedupe ${state.dedupe?'checked':''}> Hide duplicate lines</label>
+        <button data-log-reveal ${hiddenTotal&&state.dedupe?'':'hidden'}>Reveal ${hiddenTotal} hidden</button>
+        <label><input type="checkbox" data-log-follow ${state.follow?'checked':''}> Auto-follow</label>
+        <button data-step-refresh>Refresh logs</button></div>
+      ${logSectionHtml('TRACE TIMELINE',null,traceLines,0,'<span class="note">structured step only</span>')}
+      ${logSectionHtml('NATIVE',native,nativeLines,state.dedupe?hiddenTotal:0)}
+      ${logSectionHtml('GRAYLOG',graylog,graylogLines,0,`${graylogNote}${graylogLink}`)}
+      </div>`;
+    const panel=body.querySelector('[data-step-panel]');
+    panel.querySelector('[data-step-refresh]').addEventListener('click',()=>loadStepLogs(kind,stepEl));
+    panel.querySelector('[data-log-filter]').addEventListener('input',event=>{state.filter=event.target.value.trim().toLowerCase();renderStepLogs(kind,stepEl)});
+    panel.querySelector('[data-log-dedupe]').addEventListener('change',event=>{state.dedupe=event.target.checked;renderStepLogs(kind,stepEl)});
+    panel.querySelector('[data-log-reveal]').addEventListener('click',()=>{state.dedupe=false;renderStepLogs(kind,stepEl)});
+    panel.querySelector('[data-log-follow]').addEventListener('change',event=>{state.follow=event.target.checked})}
+
+    renderStepLogs(kind,stepEl)}
+
+
+
   document.querySelectorAll('.tab[data-tab]').forEach(button=>button.addEventListener('click',()=>{
     clearInterval(traceTimer);traceTimer=null;
     const kind=traceTabKind(button.dataset.tab);
-    if(kind){const state=traceState[kind];state.offset=0;state.manual=true;refreshTraces(kind);traceTimer=setInterval(()=>{if(document.hidden)return;refreshTraces(kind)},5000)}
+    if(kind){const state=traceState[kind];state.offset=0;state.manual=true;refreshTraces(kind);refreshIngestion();traceTimer=setInterval(()=>{if(document.hidden)return;refreshTraces(kind)},5000)}
     else{closeTraceDrawer('video');closeTraceDrawer('actor')}}));
 </script>
 </body></html>

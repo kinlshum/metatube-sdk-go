@@ -12,7 +12,9 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/database"
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/internal/envconfig"
+	"github.com/metatube-community/metatube-sdk-go/internal/gelf"
 	"github.com/metatube-community/metatube-sdk-go/internal/trace"
+	V "github.com/metatube-community/metatube-sdk-go/internal/version"
 	"github.com/metatube-community/metatube-sdk-go/route"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
 )
@@ -95,7 +97,19 @@ func Router(names ...string) *gin.Engine {
 
 	// enrichment tracing: opens the bounded trace store unless disabled. A
 	// failure to open the store disables tracing without affecting lookups.
-	opts = append(opts, engine.WithTraceService(trace.NewService(trace.ConfigFromEnv())))
+	traceService := trace.NewService(trace.ConfigFromEnv())
+	// optional durable log ingestion: every structured trace record is mirrored
+	// to the Graylog GELF input through a bounded, non-blocking queue, so a
+	// slow or unreachable Graylog can never delay a lookup.
+	gelfConfig := gelf.ConfigFromEnv()
+	if gelfConfig.Version == "" {
+		gelfConfig.Version = V.Version
+	}
+	logSender := gelf.New(gelfConfig)
+	if logSender.Enabled() {
+		traceService.SetMirror(logSender)
+	}
+	opts = append(opts, engine.WithTraceService(traceService))
 
 	app := engine.New(db, opts...)
 
@@ -112,5 +126,5 @@ func Router(names ...string) *gin.Engine {
 		token = auth.Token(Config.Token)
 	}
 
-	return route.New(app, token)
+	return route.New(app, token, route.WithLogMirror(logSender))
 }
