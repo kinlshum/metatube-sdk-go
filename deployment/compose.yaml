@@ -83,8 +83,8 @@ services:
       # response, or a log. An empty secret file keeps the features visible in
       # the admin UI while reporting "not configured".
       METATUBE_GRAYLOG_ENABLED: ${METATUBE_GRAYLOG_ENABLED:-false}
-      METATUBE_GRAYLOG_API_URL: ${METATUBE_GRAYLOG_API_URL:-https://graylog.madtechinc.com/api}
-      METATUBE_GRAYLOG_EXTERNAL_URL: ${METATUBE_GRAYLOG_EXTERNAL_URL:-https://graylog.madtechinc.com}
+      METATUBE_GRAYLOG_API_URL: ${METATUBE_GRAYLOG_API_URL:-https://graylog1.madtechinc.com/api}
+      METATUBE_GRAYLOG_EXTERNAL_URL: ${METATUBE_GRAYLOG_EXTERNAL_URL:-https://graylog1.madtechinc.com}
       METATUBE_GRAYLOG_STREAM_ID: ${METATUBE_GRAYLOG_STREAM_ID:-}
       METATUBE_GRAYLOG_TOKEN_FILE: /run/secrets/graylog_search_token
       METATUBE_GRAYLOG_TIMEOUT_SECONDS: "5"
@@ -96,7 +96,7 @@ services:
       # a MetaTube GELF HTTP input on port 12203) so its token can be rotated
       # without touching the shared application or Vector inputs.
       METATUBE_GELF_ENABLED: ${METATUBE_GELF_ENABLED:-false}
-      METATUBE_GELF_URL: ${METATUBE_GELF_URL:-http://192.168.10.153:12203/gelf}
+      METATUBE_GELF_URL: ${METATUBE_GELF_URL:-http://192.168.10.155:12203/gelf}
       METATUBE_GELF_TOKEN_FILE: /run/secrets/gelf_ingest_token
       METATUBE_GELF_APPLICATION: metatube
       METATUBE_GELF_SERVICE: metatube-server

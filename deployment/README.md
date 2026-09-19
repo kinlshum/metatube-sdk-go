@@ -110,14 +110,14 @@ The composition file already sets the non-secret defaults:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `METATUBE_GRAYLOG_ENABLED` | `false` | Turns the search adapter on. |
-| `METATUBE_GRAYLOG_API_URL` | `https://graylog.madtechinc.com/api` | Graylog REST base used by the adapter. |
-| `METATUBE_GRAYLOG_EXTERNAL_URL` | `https://graylog.madtechinc.com` | Browser-facing base used for deep links into Graylog. |
+| `METATUBE_GRAYLOG_API_URL` | `https://graylog1.madtechinc.com/api` | Graylog1 REST base used by the adapter. |
+| `METATUBE_GRAYLOG_EXTERNAL_URL` | `https://graylog1.madtechinc.com` | Browser-facing Graylog1 base used for deep links. |
 | `METATUBE_GRAYLOG_STREAM_ID` | empty | Restricts every search to one stream (`000000000000000000000001` is the Default Stream). |
 | `METATUBE_GRAYLOG_TIMEOUT_SECONDS` | `5` | Bound per search request. |
 | `METATUBE_GRAYLOG_MAX_RESULTS` | `200` | Hard cap per query (server-side maximum is 500). |
 | `METATUBE_GRAYLOG_MAX_RANGE_HOURS` | `24` | Hard cap on the searched window. |
 | `METATUBE_GELF_ENABLED` | `false` | Mirrors every trace record to the GELF HTTP input. |
-| `METATUBE_GELF_URL` | `http://192.168.10.153:12203/gelf` | Dedicated MetaTube GELF HTTP input, so its token can be rotated without touching the shared `12201` application input or the `12202` Vector/container input. |
+| `METATUBE_GELF_URL` | `http://192.168.10.155:12203/gelf` | Dedicated MetaTube GELF HTTP input on Graylog1, so its token can be rotated without touching the shared `12201` application input or the `12202` Vector/container input. |
 | `METATUBE_GELF_SERVER` / `_NODE` / `_ENVIRONMENT` | `kraken` / `kraken-docker` / `homelab` | Required common fields used to tell machines apart. |
 | `METATUBE_GELF_TIMEOUT_SECONDS`, `_QUEUE`, `_MAX_RETRIES` | `3`, `512`, `2` | Bounded delivery: the sender never blocks a lookup and counts drops instead. |
 
@@ -138,7 +138,5 @@ docker logs metatube 2>&1 | grep '\[GELF\]'
 # a search for one run, as the adapter performs it (Graylog 7 requires `fields`
 # and answers with CSV; the stream is passed as the `streams` parameter)
 curl -u "<api-token>:token" -H 'X-Requested-By: metatube' \
-  'https://graylog.madtechinc.com/api/search/universal/absolute?query=run_id:"run-example"&from=2026-09-19T00:00:00.000Z&to=2026-09-20T00:00:00.000Z&limit=10&streams=000000000000000000000001&fields=timestamp,message,trace_id,run_id'
+  'https://graylog1.madtechinc.com/api/search/universal/absolute?query=run_id:"run-example"&from=2026-09-19T00:00:00.000Z&to=2026-09-20T00:00:00.000Z&limit=10&streams=000000000000000000000001&fields=timestamp,message,trace_id,run_id'
 ```
-
-
