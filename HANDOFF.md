@@ -38,6 +38,21 @@ environment files.
 - TEST page for querying individual/all MetaTube movie providers.
 - Native rolling MetaTube server log viewer without a Dozzle dependency.
 - Structured HTTP and FlareSolverr error queues in the general `LOGS` tab.
+- Enrichment trace foundation: `internal/trace` store/redaction/retention,
+  correlation middleware with `X-MetaTube-Trace-ID`, engine instrumentation for
+  movie/actor/review lookups (provider, throttle, cache, fallback, selection),
+  and the `/admin/api/traces*` ingest and query APIs.
+
+The enrichment trace work is documented in
+`docs/METATUBE_ENRICHMENT_TRACE_TODO.md` under "Implementation status". The two
+admin tabs (`LOGS-METATUBE-VIDEO`, `LOGS-METATUBE-ACTOR`), image/translation
+events, Windmill and Emby reporting, FlareSolverr events, and admin
+authentication are still outstanding.
+
+Deployment note: `deployment/compose.yaml` now sets `METATUBE_TRACE_ENABLED`,
+`METATUBE_TRACE_DSN=/config/traces.db`, `METATUBE_TRACE_RETENTION_DAYS`,
+`METATUBE_TRACE_MAX_RUNS`, and `METATUBE_TRACE_MAX_EVENTS_PER_RUN`. The trace
+database lives on the existing `/config` volume, so it survives restarts.
 
 The current deployed admin UI is server-level tooling. The Emby MetaTube plugin,
 Windmill, and jav-master-app are clients, not owners of provider throttling.

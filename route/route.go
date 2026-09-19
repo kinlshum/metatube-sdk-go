@@ -12,6 +12,7 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/errors"
 	"github.com/metatube-community/metatube-sdk-go/internal/logbuffer"
+	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 	V "github.com/metatube-community/metatube-sdk-go/internal/version"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
 )
@@ -32,6 +33,8 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	// redirection middleware
 	r.Use(redirect(app))
 	r.Use(metrics(app))
+	// enrichment trace middleware (no-op when tracing is disabled)
+	r.Use(traceMiddleware(app.TraceService()))
 
 	// index page
 	r.GET("/", getIndex(app))
@@ -40,6 +43,7 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	r.PUT("/admin/api/provider-throttles", putProviderThrottles(app))
 	r.GET("/admin/api/stats", getAdminStats(app))
 	r.GET("/admin/api/logs", getAdminLogs())
+	registerTraceRoutes(r, app.TraceService())
 
 	system := r.Group("/v1", cacheNoStore())
 	{
@@ -99,7 +103,36 @@ func metrics(app *engine.Engine) gin.HandlerFunc {
 }
 
 func logger() gin.HandlerFunc {
-	return gin.LoggerWithConfig(gin.LoggerConfig{Output: logbuffer.Output()})
+	return gin.LoggerWithConfig(gin.LoggerConfig{
+		Output: logbuffer.Output(),
+		Formatter: func(param gin.LogFormatterParams) string {
+			// Ordinary log lines carry the trace ID so an operator can jump
+			// between the general LOGS tab and a structured trace.
+			traceID := ""
+			if value, ok := param.Keys[ginTraceHandleKey]; ok {
+				if handle, ok := value.(*trace.RunHandle); ok {
+					traceID = handle.TraceID()
+				}
+			}
+			if traceID == "" {
+				return defaultLogFormat(param) + "\n"
+			}
+			return defaultLogFormat(param) + " trace=" + traceID + "\n"
+		},
+	})
+}
+
+// defaultLogFormat mirrors gin's default logger output without the trailing
+// newline, which the caller appends after any extra fields.
+func defaultLogFormat(param gin.LogFormatterParams) string {
+	return fmt.Sprintf("[GIN] %v | %3d | %13v | %15s | %-7s %#v",
+		param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+		param.StatusCode,
+		param.Latency,
+		param.ClientIP,
+		param.Method,
+		param.Path,
+	)
 }
 
 func recovery() gin.HandlerFunc {
@@ -163,7 +196,7 @@ func getProviders(app *engine.Engine) gin.HandlerFunc {
 func abortWithError(c *gin.Context, err error) {
 	var e *errors.HTTPError
 	if goerr.As(err, &e) {
-		c.AbortWithStatusJSON(e.Code, &responseMessage{Error: e})
+		c.AbortWithStatusJSON(e.Code, &responseMessage{Error: e, TraceID: traceIDFromGin(c)})
 		return
 	}
 	code := http.StatusInternalServerError
@@ -175,11 +208,13 @@ func abortWithError(c *gin.Context, err error) {
 
 func abortWithStatusMessage(c *gin.Context, code int, message any) {
 	c.AbortWithStatusJSON(code, &responseMessage{
-		Error: errors.New(code, fmt.Sprintf("%v", message)),
+		Error:   errors.New(code, fmt.Sprintf("%v", message)),
+		TraceID: traceIDFromGin(c),
 	})
 }
 
 type responseMessage struct {
-	Data  any   `json:"data,omitempty"`
-	Error error `json:"error,omitempty"`
+	Data    any    `json:"data,omitempty"`
+	Error   error  `json:"error,omitempty"`
+	TraceID string `json:"trace_id,omitempty"`
 }

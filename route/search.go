@@ -46,22 +46,23 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 			results any
 			err     error
 		)
+		ctx := c.Request.Context()
 		switch typ {
 		case actorSearchType:
 			if isValidURL {
-				results, err = app.GetActorInfoByURL(query.Q, true /* always lazy */)
+				results, err = app.GetActorInfoByProviderURLContext(ctx, query.Q, true /* always lazy */)
 			} else if searchAll {
-				results, err = app.SearchActorAll(query.Q, query.Fallback)
+				results, err = app.SearchActorAllContext(ctx, query.Q, query.Fallback)
 			} else {
-				results, err = app.SearchActor(query.Q, query.Provider, query.Fallback)
+				results, err = app.SearchActorContext(ctx, query.Q, query.Provider, query.Fallback)
 			}
 		case movieSearchType:
 			if isValidURL {
-				results, err = app.GetMovieInfoByURL(query.Q, true /* always lazy */)
+				results, err = app.GetMovieInfoByProviderURLContext(ctx, query.Q, true /* always lazy */)
 			} else if searchAll {
-				results, err = app.SearchMovieAll(query.Q, query.Fallback)
+				results, err = app.SearchMovieAllContext(ctx, query.Q, query.Fallback)
 			} else {
-				results, err = app.SearchMovie(query.Q, query.Provider, query.Fallback)
+				results, err = app.SearchMovieContext(ctx, query.Q, query.Provider, query.Fallback)
 			}
 		default:
 			panic("invalid search type")

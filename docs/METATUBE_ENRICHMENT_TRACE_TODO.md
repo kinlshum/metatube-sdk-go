@@ -30,6 +30,50 @@ Each trace must answer:
 6. Which Windmill job ran and what did it update?
 7. Did the Emby write/refresh complete, partially complete, or fail?
 
+## Implementation status (2026-09-19)
+
+Server-side tracing is implemented on `codex/mdcng-fc2cmadb-providers`.
+
+Implemented:
+
+- `internal/trace`: thread-safe `Start`/`Event`/`Finish`, context propagation,
+  redaction, per-run event cap, bounded SQLite store, retention pruning, delete,
+  and confirmed purge.
+- Correlation middleware: accepts `X-MetaTube-Trace-ID` or generates one,
+  returns it in the response header, mirrors it into ordinary log lines, records
+  `request_received` and the request outcome, and finishes only the traces it
+  opened itself.
+- Engine instrumentation through context-aware methods: provider attempts and
+  durations, throttle queue/delay/concurrency, HTTP status on fetches,
+  database/cache lookups, fallback usage, keyword normalisation, and result
+  selection for movie, actor, and review paths.
+- Admin APIs: start/events/finish for client reporting, list with filters,
+  detail, sanitized export, delete, purge-expired, and stats.
+- Tests in `internal/trace` and `route` cover video/actor separation, concurrent
+  event ordering, idempotency, per-run caps, retention (running traces are never
+  pruned), abandoned-trace closing, redaction, store-failure safety, filters,
+  and disabled-mode behaviour.
+
+Remaining, in order:
+
+1. `LOGS-METATUBE-VIDEO` and `LOGS-METATUBE-ACTOR` admin tabs (step 3) reading
+   `/admin/api/traces`.
+2. Image-fetch and translation events.
+3. Reusable Windmill trace helper posting to the ingest API.
+4. Emby plugin reporting.
+5. FlareSolverr events forwarded from `deployment/provider-bridge/bridge.py`.
+6. Authentication for `/admin/*` (currently unauthenticated).
+
+Client-side notes:
+
+- A trace is opened for `/v1/movies`, `/v1/actors`, `/v1/reviews`, and for
+  `/v1/images` only when the client supplies a trace ID.
+- A request that arrives with an existing trace ID appends its events to that
+  trace and never finishes it. Only the request that opened a trace completes it,
+  so an image fetch can never close a client's identify flow early.
+- When no `X-MetaTube-Client` header is sent, the client name is inferred from
+  the user agent and flagged as `client_inferred` in the first event.
+
 ## Scope and ownership boundary
 
 MetaTube can trace requests it receives and provider work it performs. It cannot
@@ -105,41 +149,66 @@ store full metadata payloads or image bodies by default.
 
 ```text
 METATUBE_TRACE_ENABLED=true
+METATUBE_TRACE_DSN=/config/traces.db
 METATUBE_TRACE_RETENTION_DAYS=30
 METATUBE_TRACE_MAX_RUNS=10000
 METATUBE_TRACE_MAX_EVENTS_PER_RUN=500
 ```
 
+Implemented behaviour: the store is SQLite at `METATUBE_TRACE_DSN` (default
+`/config/traces.db`, on the volume the deployment already mounts), with a single
+writer connection and `trace_runs`/`trace_events` tables. Pruning runs at start
+and every 10 minutes, and the manual `purge-expired` API requires an explicit
+confirmation value. Running traces are never pruned; a trace that is never
+finished is first closed as `failed` with `error_code=abandoned` after 6 hours,
+which is what eventually makes it eligible for retention. A store failure
+disables tracing and is recorded in the counters instead of affecting lookups.
+
 ## Server instrumentation TODO
 
-- [ ] Add `internal/trace` with thread-safe Start/Event/Finish, querying,
+- [x] Add `internal/trace` with thread-safe Start/Event/Finish, querying,
       pruning, redaction, and persistence.
-- [ ] Add middleware to accept/generate trace IDs and attach context to Gin and
+- [x] Add middleware to accept/generate trace IDs and attach context to Gin and
       the Go request context.
-- [ ] Return `X-MetaTube-Trace-ID` on traced responses.
-- [ ] Instrument movie search/info, image fetches, cache/database, provider
-      fallback, translation, and result selection.
-- [ ] Instrument equivalent actor search/info/enrichment stages.
-- [ ] Instrument provider throttle queue/wait/active/completion with configured
+- [x] Return `X-MetaTube-Trace-ID` on traced responses.
+- [x] Instrument movie search/info, cache/database, provider fallback, and
+      result selection.
+- [x] Instrument equivalent actor search/info/enrichment stages.
+- [x] Instrument provider throttle queue/wait/active/completion with configured
       concurrency, chosen delay, queue time, and run time.
+- [ ] Instrument the image-fetch entry points (`engine/image.go`) with the same
+      context-aware pattern.
+- [ ] Instrument translation stages.
 - [ ] Attach FlareSolverr solve/session/error events to the active trace.
-- [ ] Record timeouts, HTTP status, retries, empty results, challenges, parse
-      errors, and cancellations as structured events.
-- [ ] Preserve current metrics/logs; trace failure must never fail a lookup.
-- [ ] Include trace ID in ordinary log lines for cross-reference with `LOGS`.
+- [x] Record HTTP status, provider failures, and empty results as structured
+      events (`provider_fetch` in `engine.FetchContext` sets `http_status`).
+- [ ] Record retries, challenges, parse errors, and cancellations as distinct
+      structured events.
+- [x] Preserve current metrics/logs; trace failure must never fail a lookup.
+- [x] Include trace ID in ordinary log lines for cross-reference with `LOGS`.
 
 ## Client event-ingest API TODO
 
 Use existing admin/API authentication, validate payload size, rate-limit per
 client, and accept an idempotency key for retried events.
 
-- [ ] `POST /admin/api/traces/start`
-- [ ] `POST /admin/api/traces/:traceID/events`
-- [ ] `POST /admin/api/traces/:traceID/finish`
-- [ ] `GET /admin/api/traces?kind=video|actor&...`
-- [ ] `GET /admin/api/traces/:traceID`
-- [ ] `GET /admin/api/traces/:traceID/export` (sanitized JSON)
-- [ ] `DELETE /admin/api/traces/:traceID`
+Payload size is enforced with `http.MaxBytesReader`, ingest is rate-limited per
+client, and idempotency keys are honoured. **Admin authentication still does not
+exist**: `/admin/*` routes carry no auth middleware today, so the trace APIs
+inherit that gap. Add authentication before this feature is exposed beyond the
+LAN.
+
+- [x] `POST /admin/api/traces/start`
+- [x] `POST /admin/api/traces/:traceID/events`
+- [x] `POST /admin/api/traces/:traceID/finish`
+- [x] `GET /admin/api/traces?kind=video|actor&...`
+- [x] `GET /admin/api/traces/:traceID`
+- [x] `GET /admin/api/traces/:traceID/export` (sanitized JSON)
+- [x] `DELETE /admin/api/traces/:traceID`
+- [x] `POST /admin/api/traces/purge-expired` (requires
+      `{"confirm":"purge-expired"}`)
+- [x] `GET /admin/api/trace-stats` (counters plus effective configuration)
+
 
 Filters: query/text, trace ID, catalog code/name, Emby item ID, Windmill job ID,
 client, provider, operation, status, component, error-only, and time range.

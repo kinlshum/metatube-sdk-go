@@ -63,6 +63,12 @@ services:
       DB_AUTO_MIGRATE: "1"
       DB_PREPARED_STMT: "1"
       METATUBE_PROVIDER_BRIDGE_URL: http://provider-bridge:9210
+      # Enrichment workflow traces (stored on the /config volume below).
+      METATUBE_TRACE_ENABLED: "true"
+      METATUBE_TRACE_DSN: /config/traces.db
+      METATUBE_TRACE_RETENTION_DAYS: "30"
+      METATUBE_TRACE_MAX_RUNS: "10000"
+      METATUBE_TRACE_MAX_EVENTS_PER_RUN: "500"
       MT_ACTOR_PROVIDER_AV_LEAGUE__PRIORITY: "1003"
       MT_ACTOR_PROVIDER_XSLIST__PRIORITY: "1002"
       MT_ACTOR_PROVIDER_MINNANO_AV__PRIORITY: "1001"

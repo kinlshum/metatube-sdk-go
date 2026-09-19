@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"log"
 	gomaps "maps"
@@ -14,6 +15,7 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/collection/maps"
 	"github.com/metatube-community/metatube-sdk-go/common/fetch"
 	"github.com/metatube-community/metatube-sdk-go/database"
+	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 	mt "github.com/metatube-community/metatube-sdk-go/provider"
 )
 
@@ -45,6 +47,7 @@ type Engine struct {
 	providerThrottle   *ProviderThrottle
 	metrics            *engineMetrics
 	health             *providerHealthMonitor
+	traces             *trace.Service
 }
 
 func New(db *gorm.DB, opts ...Option) *Engine {
@@ -62,6 +65,7 @@ func New(db *gorm.DB, opts ...Option) *Engine {
 		providerThrottle:     newProviderThrottle(),
 		metrics:              newEngineMetrics(),
 		health:               newProviderHealthMonitor(),
+		traces:               trace.Disabled(),
 	}
 	// apply options.
 	for _, opt := range opts {
@@ -157,16 +161,64 @@ func (e *Engine) MustGetMovieProviderByName(name string) mt.MovieProvider {
 // Fetch fetches content from url. If the provider
 // is nil, the default fetcher will be used.
 func (e *Engine) Fetch(url string, provider mt.Provider) (*http.Response, error) {
+	return e.FetchContext(context.Background(), url, provider)
+}
+
+// FetchContext fetches content from url while recording provider-stage events
+// against the trace carried by ctx (if any).
+func (e *Engine) FetchContext(ctx context.Context, url string, provider mt.Provider) (*http.Response, error) {
 	if provider != nil {
-		release := e.providerThrottle.Begin(provider.Name())
+		release := e.providerThrottle.Begin(ctx, provider.Name())
 		defer release()
+	}
+	started := time.Now()
+	record := func(response *http.Response, err error, result string) {
+		event := trace.Event{
+			Component: trace.ComponentProvider,
+			Stage:     trace.StageProviderCompleted,
+			Provider:  providerName(provider),
+			Details:   trace.JSONMap{"result": result, "url": trace.SanitizeURL(url)},
+		}
+		if response != nil {
+			event.HTTPStatus = response.StatusCode
+			if response.StatusCode >= 400 {
+				event.Stage = trace.StageProviderFailed
+				event.Level = trace.LevelWarn
+				event.Message = response.Status
+			}
+		}
+		if err != nil {
+			event.Stage = trace.StageProviderFailed
+			event.Level = trace.LevelError
+			event.Message = err.Error()
+		}
+		trace.TimedEmit(ctx, started, event)
 	}
 	// Provider which implements Fetcher interface should be
 	// used to fetch all its corresponding resources.
 	if fetcher, ok := provider.(mt.Fetcher); ok {
-		return fetcher.Fetch(url)
+		response, err := fetcher.Fetch(url)
+		record(response, err, "provider_fetch")
+		return response, err
 	}
-	return e.fetcher.Fetch(url)
+	response, err := e.fetcher.Fetch(url)
+	record(response, err, "engine_fetch")
+	return response, err
+}
+
+func providerName(provider mt.Provider) string {
+	if provider == nil {
+		return ""
+	}
+	return provider.Name()
+}
+
+// TraceService returns the trace service backing this engine.
+func (e *Engine) TraceService() *trace.Service {
+	if e.traces == nil {
+		return trace.Disabled()
+	}
+	return e.traces
 }
 
 func (e *Engine) ProviderThrottleSettings() []ProviderThrottleSetting {

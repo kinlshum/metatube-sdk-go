@@ -12,6 +12,7 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/database"
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/internal/envconfig"
+	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 	"github.com/metatube-community/metatube-sdk-go/route"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
 )
@@ -91,6 +92,10 @@ func Router(names ...string) *gin.Engine {
 	for provider, config := range envconfig.MovieProviderConfigs.Iterator() {
 		opts = append(opts, engine.WithMovieProviderConfig(provider, config))
 	}
+
+	// enrichment tracing: opens the bounded trace store unless disabled. A
+	// failure to open the store disables tracing without affecting lookups.
+	opts = append(opts, engine.WithTraceService(trace.NewService(trace.ConfigFromEnv())))
 
 	app := engine.New(db, opts...)
 

@@ -44,10 +44,11 @@ func getReview(app *engine.Engine) gin.HandlerFunc {
 			reviews *model.MovieReviewInfo
 			err     error
 		)
+		ctx := c.Request.Context()
 		if query.Homepage != "" {
-			reviews, err = app.GetMovieReviewsByProviderURL(query.Homepage, query.Lazy)
+			reviews, err = app.GetMovieReviewsByProviderURLContext(ctx, query.Homepage, query.Lazy)
 		} else {
-			reviews, err = app.GetMovieReviewsByProviderID(uri.AsProviderID(), query.Lazy)
+			reviews, err = app.GetMovieReviewsByProviderIDContext(ctx, uri.AsProviderID(), query.Lazy)
 		}
 		if err != nil {
 			abortWithError(c, err)

@@ -48,11 +48,12 @@ func getInfo(app *engine.Engine, typ infoType) gin.HandlerFunc {
 			info any
 			err  error
 		)
+		ctx := c.Request.Context()
 		switch typ {
 		case actorInfoType:
-			info, err = app.GetActorInfoByProviderID(uri.AsProviderID(), query.Lazy)
+			info, err = app.GetActorInfoByProviderIDContext(ctx, uri.AsProviderID(), query.Lazy)
 		case movieInfoType:
-			info, err = app.GetMovieInfoByProviderID(uri.AsProviderID(), query.Lazy)
+			info, err = app.GetMovieInfoByProviderIDContext(ctx, uri.AsProviderID(), query.Lazy)
 		default:
 			panic("invalid info/metadata type")
 		}

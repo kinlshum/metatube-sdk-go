@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"context"
 	goerr "errors"
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"golang.org/x/text/language"
 	"gorm.io/gorm/clause"
@@ -14,12 +16,13 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/common/comparer"
 	"github.com/metatube-community/metatube-sdk-go/common/parser"
 	"github.com/metatube-community/metatube-sdk-go/engine/providerid"
+	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 	"github.com/metatube-community/metatube-sdk-go/model"
 	mt "github.com/metatube-community/metatube-sdk-go/provider"
 	"github.com/metatube-community/metatube-sdk-go/provider/gfriends"
 )
 
-func (e *Engine) searchActorFromDB(keyword string, provider mt.Provider) (results []*model.ActorSearchResult, err error) {
+func (e *Engine) searchActorFromDB(ctx context.Context, keyword string, provider mt.Provider) (results []*model.ActorSearchResult, err error) {
 	var infos []*model.ActorInfo
 	if err = e.db.
 		Where("provider = ? AND name = ? COLLATE NOCASE",
@@ -32,15 +35,19 @@ func (e *Engine) searchActorFromDB(keyword string, provider mt.Provider) (result
 			results = append(results, info.ToSearchResult())
 		}
 	}
+	traceCacheLookup(ctx, "search", provider.Name(), err == nil, len(results), err)
 	return
 }
 
-func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool) ([]*model.ActorSearchResult, error) {
+func (e *Engine) searchActor(ctx context.Context, keyword string, provider mt.Provider, fallback bool) ([]*model.ActorSearchResult, error) {
 	innerSearch := func(keyword string) (results []*model.ActorSearchResult, err error) {
 		if provider.Name() == gfriends.Name {
-			release := e.providerThrottle.Begin(provider.Name())
+			release := e.providerThrottle.Begin(ctx, provider.Name())
 			defer release()
-			return provider.(mt.ActorSearcher).SearchActor(keyword)
+			started := time.Now()
+			results, err = provider.(mt.ActorSearcher).SearchActor(keyword)
+			traceProviderResult(ctx, provider.Name(), started, err, trace.JSONMap{"operation": "search", "result_count": len(results)})
+			return results, err
 		}
 		if searcher, ok := provider.(mt.ActorSearcher); ok {
 			defer func() {
@@ -58,9 +65,9 @@ func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool
 			}()
 			if fallback {
 				defer func() {
-					if innerResults, innerErr := e.searchActorFromDB(keyword, provider);
-					// ignore DB query error.
-					innerErr == nil && len(innerResults) > 0 {
+					innerResults, innerErr := e.searchActorFromDB(ctx, keyword, provider)
+					traceFallbackResult(ctx, provider.Name(), len(innerResults), innerErr)
+					if innerErr == nil && len(innerResults) > 0 {
 						// overwrite error.
 						err = nil
 						// update results.
@@ -73,9 +80,12 @@ func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool
 					}
 				}()
 			}
-			release := e.providerThrottle.Begin(provider.Name())
+			release := e.providerThrottle.Begin(ctx, provider.Name())
 			defer release()
-			return searcher.SearchActor(keyword)
+			started := time.Now()
+			results, err = searcher.SearchActor(keyword)
+			traceProviderResult(ctx, provider.Name(), started, err, trace.JSONMap{"operation": "search", "result_count": len(results)})
+			return results, err
 		}
 		// All providers should implement the ActorSearcher interface.
 		return nil, mt.ErrInfoNotFound
@@ -108,15 +118,33 @@ func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool
 	return results, nil
 }
 
+// SearchActor searches a single actor provider.
 func (e *Engine) SearchActor(keyword, name string, fallback bool) ([]*model.ActorSearchResult, error) {
+	return e.SearchActorContext(context.Background(), keyword, name, fallback)
+}
+
+// SearchActorContext searches a single actor provider while recording the
+// attempt against the trace carried by ctx.
+func (e *Engine) SearchActorContext(ctx context.Context, keyword, name string, fallback bool) ([]*model.ActorSearchResult, error) {
 	provider, err := e.GetActorProviderByName(name)
 	if err != nil {
 		return nil, err
 	}
-	return e.searchActor(keyword, provider, fallback)
+	results, err := e.searchActor(ctx, keyword, provider, fallback)
+	if err == nil && len(results) > 0 {
+		traceSelection(ctx, results[0].Provider, results[0].ID, len(results))
+	}
+	return results, err
 }
 
-func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model.ActorSearchResult, err error) {
+// SearchActorAll searches every actor provider.
+func (e *Engine) SearchActorAll(keyword string, fallback bool) ([]*model.ActorSearchResult, error) {
+	return e.SearchActorAllContext(context.Background(), keyword, fallback)
+}
+
+// SearchActorAllContext searches every actor provider concurrently while
+// recording each provider attempt against the trace carried by ctx.
+func (e *Engine) SearchActorAllContext(ctx context.Context, keyword string, fallback bool) (results []*model.ActorSearchResult, err error) {
 	var (
 		mu sync.Mutex
 		wg sync.WaitGroup
@@ -125,7 +153,7 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 		wg.Add(1)
 		go func(provider mt.ActorProvider) {
 			defer wg.Done()
-			if innerResults, innerErr := e.searchActor(keyword, provider, fallback); innerErr == nil {
+			if innerResults, innerErr := e.searchActor(ctx, keyword, provider, fallback); innerErr == nil {
 				for _, result := range innerResults {
 					if result.IsValid() /* validation check */ {
 						mu.Lock()
@@ -142,19 +170,23 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 		return e.MustGetActorProviderByName(results[i].Provider).Priority() >
 			e.MustGetActorProviderByName(results[j].Provider).Priority()
 	})
+	if len(results) > 0 {
+		traceSelection(ctx, results[0].Provider, results[0].ID, len(results))
+	}
 	return
 }
 
-func (e *Engine) getActorInfoFromDB(provider mt.ActorProvider, id string) (*model.ActorInfo, error) {
+func (e *Engine) getActorInfoFromDB(ctx context.Context, provider mt.ActorProvider, id string) (*model.ActorInfo, error) {
 	info := &model.ActorInfo{}
 	err := e.db. // Exact match here.
 			Where("provider = ?", provider.Name()).
 			Where("id = ? COLLATE NOCASE", id).
 			First(info).Error
+	traceCacheLookup(ctx, "info", provider.Name(), err == nil, boolToCount(err == nil), err)
 	return info, err
 }
 
-func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, lazy bool, callback func() (*model.ActorInfo, error)) (info *model.ActorInfo, err error) {
+func (e *Engine) getActorInfoWithCallback(ctx context.Context, provider mt.ActorProvider, id string, lazy bool, callback func() (*model.ActorInfo, error)) (info *model.ActorInfo, err error) {
 	defer func() {
 		// metadata validation check.
 		if err == nil && (info == nil || !info.IsValid()) {
@@ -162,16 +194,27 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 		}
 	}()
 	if provider.Name() == gfriends.Name {
-		release := e.providerThrottle.Begin(provider.Name())
+		release := e.providerThrottle.Begin(ctx, provider.Name())
 		defer release()
-		return provider.GetActorInfoByID(id)
+		started := time.Now()
+		info, err = provider.GetActorInfoByID(id)
+		traceProviderResult(ctx, provider.Name(), started, err, trace.JSONMap{"operation": "info"})
+		if err == nil && info != nil {
+			traceSelection(ctx, provider.Name(), id, 1)
+		}
+		return info, err
 	}
 	defer func() {
 		// gfriends actor image injection for JAV actor providers.
 		if err == nil && info != nil && provider.Language() == language.Japanese {
-			release := e.providerThrottle.Begin(gfriends.Name)
+			release := e.providerThrottle.Begin(ctx, gfriends.Name)
+			started := time.Now()
 			gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(info.Name)
 			release()
+			traceProviderResult(ctx, gfriends.Name, started, gErr, trace.JSONMap{
+				"operation":    "image_injection",
+				"result_count": len(gInfo.Images),
+			})
 			if gErr == nil && len(gInfo.Images) > 0 {
 				info.Images = append(gInfo.Images, info.Images...)
 			}
@@ -179,7 +222,7 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	}()
 	// Query DB first (by id).
 	if lazy {
-		if info, err = e.getActorInfoFromDB(provider, id); err == nil && info.IsValid() {
+		if info, err = e.getActorInfoFromDB(ctx, provider, id); err == nil && info.IsValid() {
 			return
 		}
 	}
@@ -187,34 +230,60 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	defer func() {
 		if err == nil && info.IsValid() {
 			// Make sure we save the original info here.
-			e.db.Clauses(clause.OnConflict{
+			result := e.db.Clauses(clause.OnConflict{
 				UpdateAll: true,
 			}).Create(info) // ignore error
+			trace.Emit(ctx, trace.Event{
+				Component: trace.ComponentDatabase,
+				Stage:     trace.StageCacheLookup,
+				Provider:  provider.Name(),
+				Details: trace.JSONMap{
+					"source": "info",
+					"action": "save",
+					"rows":   result.RowsAffected,
+				},
+			})
 		}
 	}()
-	return callback()
+	started := time.Now()
+	info, err = callback()
+	traceProviderResult(ctx, provider.Name(), started, err, trace.JSONMap{
+		"operation": "info",
+		"lazy":      lazy,
+	})
+	if err == nil && info != nil {
+		traceSelection(ctx, provider.Name(), id, 1)
+	}
+	return info, err
 }
 
-func (e *Engine) getActorInfoByProviderID(provider mt.ActorProvider, id string, lazy bool) (*model.ActorInfo, error) {
+func (e *Engine) getActorInfoByProviderID(ctx context.Context, provider mt.ActorProvider, id string, lazy bool) (*model.ActorInfo, error) {
 	if id = provider.NormalizeActorID(id); id == "" {
 		return nil, mt.ErrInvalidID
 	}
-	return e.getActorInfoWithCallback(provider, id, lazy, func() (*model.ActorInfo, error) {
-		release := e.providerThrottle.Begin(provider.Name())
+	return e.getActorInfoWithCallback(ctx, provider, id, lazy, func() (*model.ActorInfo, error) {
+		release := e.providerThrottle.Begin(ctx, provider.Name())
 		defer release()
 		return provider.GetActorInfoByID(id)
 	})
 }
 
+// GetActorInfoByProviderID returns actor metadata by provider ID.
 func (e *Engine) GetActorInfoByProviderID(pid providerid.ProviderID, lazy bool) (*model.ActorInfo, error) {
+	return e.GetActorInfoByProviderIDContext(context.Background(), pid, lazy)
+}
+
+// GetActorInfoByProviderIDContext records cache lookups, the provider call and
+// the selected result against the trace carried by ctx.
+func (e *Engine) GetActorInfoByProviderIDContext(ctx context.Context, pid providerid.ProviderID, lazy bool) (*model.ActorInfo, error) {
 	provider, err := e.GetActorProviderByName(pid.Provider)
 	if err != nil {
 		return nil, err
 	}
-	return e.getActorInfoByProviderID(provider, pid.ID, lazy)
+	return e.getActorInfoByProviderID(ctx, provider, pid.ID, lazy)
 }
 
-func (e *Engine) getActorInfoByProviderURL(provider mt.ActorProvider, rawURL string, lazy bool) (*model.ActorInfo, error) {
+func (e *Engine) getActorInfoByProviderURL(ctx context.Context, provider mt.ActorProvider, rawURL string, lazy bool) (*model.ActorInfo, error) {
 	id, err := provider.ParseActorIDFromURL(rawURL)
 	switch {
 	case err != nil:
@@ -222,17 +291,24 @@ func (e *Engine) getActorInfoByProviderURL(provider mt.ActorProvider, rawURL str
 	case id == "":
 		return nil, mt.ErrInvalidURL
 	}
-	return e.getActorInfoWithCallback(provider, id, lazy, func() (*model.ActorInfo, error) {
-		release := e.providerThrottle.Begin(provider.Name())
+	return e.getActorInfoWithCallback(ctx, provider, id, lazy, func() (*model.ActorInfo, error) {
+		release := e.providerThrottle.Begin(ctx, provider.Name())
 		defer release()
 		return provider.GetActorInfoByURL(rawURL)
 	})
 }
 
+// GetActorInfoByURL returns actor metadata by provider URL.
 func (e *Engine) GetActorInfoByURL(rawURL string, lazy bool) (*model.ActorInfo, error) {
+	return e.GetActorInfoByProviderURLContext(context.Background(), rawURL, lazy)
+}
+
+// GetActorInfoByProviderURLContext is the context-aware variant of
+// GetActorInfoByURL.
+func (e *Engine) GetActorInfoByProviderURLContext(ctx context.Context, rawURL string, lazy bool) (*model.ActorInfo, error) {
 	provider, err := e.GetActorProviderByURL(rawURL)
 	if err != nil {
 		return nil, err
 	}
-	return e.getActorInfoByProviderURL(provider, rawURL, lazy)
+	return e.getActorInfoByProviderURL(ctx, provider, rawURL, lazy)
 }

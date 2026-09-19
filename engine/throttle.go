@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 )
 
 type ProviderThrottleSetting struct {
@@ -160,8 +163,9 @@ func (t *ProviderThrottle) Update(values []ProviderThrottleSetting) error {
 	return nil
 }
 
-func (t *ProviderThrottle) Begin(provider string) func() {
+func (t *ProviderThrottle) Begin(ctx context.Context, provider string) func() {
 	key := throttleKey(provider)
+	queuedAt := time.Now()
 	t.mu.RLock()
 	setting, ok := t.settings[key]
 	if !ok {
@@ -191,14 +195,18 @@ func (t *ProviderThrottle) Begin(provider string) func() {
 	if state.active > state.peakActive {
 		state.peakActive = state.active
 	}
+	active, peakActive := state.active, state.peakActive
 	state.mu.Unlock()
 
+	queueMS := float64(time.Since(queuedAt).Microseconds()) / 1000
+	var delaySeconds float64
 	if setting.MaxSeconds > 0 {
 		state.paceMu.Lock()
 		delay := setting.MinSeconds
 		if setting.MaxSeconds > setting.MinSeconds {
 			delay += rand.Float64() * (setting.MaxSeconds - setting.MinSeconds)
 		}
+		delaySeconds = delay
 		remaining := state.lastRun.Add(time.Duration(delay * float64(time.Second))).Sub(time.Now())
 		if remaining > 0 {
 			time.Sleep(remaining)
@@ -206,6 +214,22 @@ func (t *ProviderThrottle) Begin(provider string) func() {
 		state.lastRun = time.Now()
 		state.paceMu.Unlock()
 	}
+
+	// Record the throttle stage so the timeline shows queueing and pacing
+	// separately from the actual provider work.
+	trace.Emit(ctx, trace.Event{
+		Component: trace.ComponentThrottle,
+		Stage:     trace.StageThrottleWait,
+		Provider:  provider,
+		Details: trace.JSONMap{
+			"queue_ms":        queueMS,
+			"delay_seconds":   delaySeconds,
+			"active":          active,
+			"peak_active":     peakActive,
+			"max_concurrency": setting.MaxConcurrency,
+		},
+	})
+
 	started := time.Now()
 	return func() {
 		state.mu.Lock()
