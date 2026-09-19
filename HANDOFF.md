@@ -1,5 +1,14 @@
 # MetaTube Admin handoff
 
+## Current custom release
+
+`custom-2026.09.19.1` fixes the enrichment debugger interaction: selecting a
+video or actor job now expands the complete run → trace → step viewer directly
+beneath that table row. Step panels continue to correlate structured trace,
+native MetaTube, and Graylog records. See `CHANGELOG.md` and
+`docs/RELEASE_LOG.md`; update the release-log row with the final commit and
+deployed image digest after every deployment.
+
 Updated: 2026-09-18
 
 ## Repository and branch

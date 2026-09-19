@@ -44,6 +44,7 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		`id="traceActorPrev"`, `id="traceActorNext"`, `id="traceActorPager"`,
 		`id="traceVideoRows"`, `id="traceActorRows"`,
 		`id="traceVideoDrawer"`, `id="traceActorDrawer"`,
+		`id="traceVideoDrawerAnchor"`, `id="traceActorDrawerAnchor"`,
 	} {
 		assert.Contains(t, body, element)
 	}
@@ -68,6 +69,14 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 	assert.Contains(t, body, "const previousScroll=scroll?0:drawer.scrollTop;",
 		"a live drawer refresh must preserve the reader's scroll position")
 	assert.Contains(t, body, "drawer.scrollTop=previousScroll")
+	assert.Contains(t, body, "function placeTraceDrawer(kind,row)",
+		"the detail viewer must be inserted directly below the selected job")
+	assert.Contains(t, body, "row.after(detail)",
+		"clicking a job must expand its details inline")
+	assert.Contains(t, body, "drawer.scrollIntoView({behavior:'smooth',block:'nearest'})",
+		"the expanded job must be brought into view")
+	assert.Contains(t, body, "if(traceState[kind].open===row.dataset.trace){closeTraceDrawer(kind);return}",
+		"clicking an expanded job must collapse it")
 	assert.Contains(t, body, "if(state.paused&&!state.manual)return;",
 		"pause must stop polling until an explicit refresh")
 	assert.Contains(t, body, "${follow?' · following newest':' · page held'}",

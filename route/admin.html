@@ -48,6 +48,11 @@
     .run-panel{padding:0 18px 6px}
     .run-head{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:11px 13px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;margin:12px 0 8px;font-size:13px}
     .run-tree{border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:12px}
+    #traceVideoRows>tr[data-trace],#traceActorRows>tr[data-trace]{cursor:pointer}
+    #traceVideoRows>tr[data-trace]:hover,#traceActorRows>tr[data-trace]:hover{background:#183126}
+    #traceVideoRows>tr.trace-selected,#traceActorRows>tr.trace-selected{background:#1d3b2c;box-shadow:inset 4px 0 var(--green2)}
+    .trace-detail-row>td{padding:0!important;background:#0d1913;border-bottom:2px solid var(--green2)}
+    .trace-detail-row [id$=Drawer]{display:block;padding:14px}
     .run-node{border-top:1px solid #233c30}.run-node:first-child{border-top:0}
     .run-node>summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 13px;cursor:pointer;font-size:13px;list-style:none}
     .run-node>summary::-webkit-details-marker{display:none}.run-node[open]>summary{background:#16281f}
@@ -123,7 +128,7 @@
     <div id="traceVideoStatusLine" class="note" style="padding:10px 18px">Loading traces…</div>
     <div class="scroll-table"><table id="traceVideoTable"><thead><tr><th>Time</th><th>Item</th><th>Operation</th><th>Client</th><th>Provider</th><th>Status</th><th>Duration</th><th>Windmill</th><th>Emby</th></tr></thead><tbody id="traceVideoRows"></tbody></table></div>
     <div class="pager"><button id="traceVideoPrev" class="tab">Newer</button><button id="traceVideoNext" class="tab">Older</button><span class="spacer"></span><span id="traceVideoPager" class="note"></span></div>
-    <div id="traceVideoDrawer"></div>
+    <div id="traceVideoDrawerAnchor" hidden><div id="traceVideoDrawer"></div></div>
   </section>
   <section id="traceActorPage" class="card page hidden">
     <div class="intro"><h1>MetaTube actor enrichment traces</h1><p>Structured actor identify and enrichment timelines: client, providers, throttle waits, cache, fallback, image injection, selection, Windmill, and Emby. Actor traces never appear in the video tab. <span class="live">Refreshes every 5 seconds while visible</span></p></div>
@@ -144,7 +149,7 @@
     <div id="traceActorStatusLine" class="note" style="padding:10px 18px">Loading traces…</div>
     <div class="scroll-table"><table id="traceActorTable"><thead><tr><th>Time</th><th>Item</th><th>Operation</th><th>Client</th><th>Provider</th><th>Status</th><th>Duration</th><th>Windmill</th><th>Emby</th></tr></thead><tbody id="traceActorRows"></tbody></table></div>
     <div class="pager"><button id="traceActorPrev" class="tab">Newer</button><button id="traceActorNext" class="tab">Older</button><span class="spacer"></span><span id="traceActorPager" class="note"></span></div>
-    <div id="traceActorDrawer"></div>
+    <div id="traceActorDrawerAnchor" hidden><div id="traceActorDrawer"></div></div>
   </section>
 </main>
 <script>
@@ -205,12 +210,22 @@
         <td>${traceMs(trace.duration_ms)}</td>
         <td class="note">${esc(trace.windmill_job_id||'—')}</td>
         <td class="note">${esc(trace.emby_item_id||'—')}</td></tr>`}).join('')}
+  function traceDrawerAnchor(kind){return traceEl(kind,'DrawerAnchor')}
+  function resetTraceDrawerPlacement(kind){const drawer=traceEl(kind,'Drawer'),anchor=traceDrawerAnchor(kind);
+    if(drawer&&anchor&&!anchor.contains(drawer))anchor.appendChild(drawer);
+    traceEl(kind,'Rows').querySelectorAll('.trace-detail-row').forEach(row=>row.remove());
+    traceEl(kind,'Rows').querySelectorAll('.trace-selected').forEach(row=>row.classList.remove('trace-selected'))}
+  function placeTraceDrawer(kind,row){if(!row)return;const drawer=traceEl(kind,'Drawer');resetTraceDrawerPlacement(kind);
+    const detail=document.createElement('tr');detail.className='trace-detail-row';detail.dataset.detailFor=row.dataset.trace;
+    const cell=document.createElement('td');cell.colSpan=9;cell.appendChild(drawer);detail.appendChild(cell);row.after(detail);row.classList.add('trace-selected')}
   function drawTraces(kind){const state=traceState[kind];
+    resetTraceDrawerPlacement(kind);
     traceEl(kind,'Rows').innerHTML=traceRowsHtml(kind);
     const from=state.total?state.offset+1:0,to=Math.min(state.offset+state.rows.length,state.total);
     traceEl(kind,'Pager').textContent=`${from}–${to} of ${state.total}`;
     traceEl(kind,'Prev').disabled=state.offset<=0;
-    traceEl(kind,'Next').disabled=state.offset+state.limit>=state.total}
+    traceEl(kind,'Next').disabled=state.offset+state.limit>=state.total;
+    if(state.open){const row=[...traceEl(kind,'Rows').querySelectorAll('tr[data-trace]')].find(item=>item.dataset.trace===state.open);if(row)placeTraceDrawer(kind,row)}}
   async function refreshTraces(kind){const state=traceState[kind];
     if(state.loading)return;
     if(state.paused&&!state.manual)return;
@@ -238,7 +253,7 @@
     // the operator asks for it.
     if(state.open&&(follow||manual))openTrace(kind,state.open,false)}
   function traceFilterChanged(kind){traceState[kind].offset=0;traceState[kind].manual=true;refreshTraces(kind)}
-  function closeTraceDrawer(kind){traceState[kind].open='';traceEl(kind,'Drawer').innerHTML=''}
+  function closeTraceDrawer(kind){traceState[kind].open='';const drawer=traceEl(kind,'Drawer');resetTraceDrawerPlacement(kind);drawer.innerHTML=''}
   function traceMeta(label,value){return `<div><span>${esc(label)}</span>${value?`<div>${value}</div>`:'<div class="note">—</div>'}</div>`}
   function timelineGroupKey(event){return (event.component==='provider'||event.component==='throttle')?'provider:'+(event.provider||'unknown'):'component:'+event.component}
   function timelineGroups(events){const groups=new Map();
@@ -290,7 +305,8 @@
       <div class="run-panel" data-run-panel></div>
       ${summary?`<div class="note" style="padding:12px 18px 0">Stage totals: ${esc(summary)}</div>`:''}
       <div class="timeline">${groups.map(group=>`<section class="timeline-group"><h3><span aria-hidden="true">${group.icon}</span>${esc(group.label)}<span class="totals">${group.events.length} event(s) · ${traceMs(group.total)}</span></h3>${group.events.map(event=>`<div class="timeline-event ${event.level==='error'?'err':''}"><span class="note">${new Date(event.at).toLocaleTimeString()}</span><span class="stage">${esc(event.stage||'')}</span><span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span><span class="detail">${traceEventDetail(event)}</span></div>`).join('')}</section>`).join('')||'<div class="note">No events recorded for this trace.</div>'}</div>`}
-  async function openTrace(kind,traceId,scroll){const state=traceState[kind];state.open=traceId;const drawer=traceEl(kind,'Drawer');
+  async function openTrace(kind,traceId,scroll,row){const state=traceState[kind];state.open=traceId;const drawer=traceEl(kind,'Drawer');
+    if(row)placeTraceDrawer(kind,row);
     // A live auto-follow refresh keeps the reader's scroll position; opening a
     // trace from a row click starts at the top.
     const previousScroll=scroll?0:drawer.scrollTop;
@@ -310,7 +326,8 @@
       const key=runKeyOf(trace);
       if(runState.key&&runState.key!==key){runState.key='';runState.group=null;runState.openTraces={};runState.openSteps={};runState.logs={}}
       loadRun(kind,trace,true);
-      drawer.scrollTop=previousScroll
+      drawer.scrollTop=previousScroll;
+      if(scroll)drawer.scrollIntoView({behavior:'smooth',block:'nearest'})
     }catch(e){drawer.innerHTML=`<div class="drawer-head"><h2>Trace</h2><span class="grow"></span><button data-action="close" class="tab">Close</button></div><div class="note" style="padding:16px 18px">${esc(e.message)}</div>`;drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind))}}
   function copyTraceId(traceId,kind){const done=()=>{traceEl(kind,'StatusLine').textContent=`Copied ${traceId}`;setTimeout(()=>refreshTraces(kind),1600)};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(traceId).then(done).catch(()=>{})}
@@ -335,7 +352,9 @@
     // Turning auto-follow on jumps straight back to the newest page and refreshes
     // the open drawer; turning it off leaves everything where it is.
     traceEl(kind,'Follow').addEventListener('change',()=>{const state=traceState[kind];if(traceEl(kind,'Follow').checked){state.offset=0;state.manual=true;refreshTraces(kind)}});
-    traceEl(kind,'Rows').addEventListener('click',event=>{const row=event.target.closest('tr');if(row&&row.dataset.trace)openTrace(kind,row.dataset.trace,true)});
+    traceEl(kind,'Rows').addEventListener('click',event=>{const row=event.target.closest('tr[data-trace]');if(!row)return;
+      if(traceState[kind].open===row.dataset.trace){closeTraceDrawer(kind);return}
+      openTrace(kind,row.dataset.trace,true,row)});
   });
   // --- Graylog ingestion (GELF sender) status card ---
   const ingestionState={stats:null,search:null,error:'',probing:false};
