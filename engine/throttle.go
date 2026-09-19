@@ -71,6 +71,20 @@ func defaultConcurrency(provider string) int {
 	return 2
 }
 
+func effectiveConcurrency(provider string, configured int) int {
+	// JavDB is intentionally a hard global single-flight provider. Enforce this
+	// at the server boundary so Emby, JAV Master, Windmill, admin tests, and any
+	// future client all share the same cap even if an older config file contains
+	// a larger value.
+	if strings.EqualFold(provider, "JavDB") {
+		return 1
+	}
+	if configured == 0 {
+		return defaultConcurrency(provider)
+	}
+	return configured
+}
+
 func (t *ProviderThrottle) load() error {
 	data, err := os.ReadFile(t.path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -84,6 +98,7 @@ func (t *ProviderThrottle) load() error {
 		return err
 	}
 	for _, value := range values {
+		value.MaxConcurrency = effectiveConcurrency(value.Provider, value.MaxConcurrency)
 		t.settings[throttleKey(value.Provider)] = value
 	}
 	return nil
@@ -106,9 +121,7 @@ func (t *ProviderThrottle) Settings(actorProviders, movieProviders map[string]bo
 			value.Provider = name
 			value.MinSeconds, value.MaxSeconds = defaultThrottle(name)
 		}
-		if value.MaxConcurrency == 0 {
-			value.MaxConcurrency = defaultConcurrency(name)
-		}
+		value.MaxConcurrency = effectiveConcurrency(name, value.MaxConcurrency)
 		value.Actor = actorProviders[key]
 		value.Movie = movieProviders[key]
 		values = append(values, value)
@@ -125,6 +138,9 @@ func validateThrottle(value ProviderThrottleSetting) error {
 		return fmt.Errorf("%s concurrency must stay between 1 and 3", value.Provider)
 	}
 	if strings.EqualFold(value.Provider, "JavDB") {
+		if value.MaxConcurrency != 1 {
+			return errors.New("JavDB concurrency is fixed at 1")
+		}
 		if value.MinSeconds < 1 || value.MaxSeconds > 10 {
 			return errors.New("JavDB delays must stay between 1 and 10 seconds")
 		}
@@ -172,9 +188,7 @@ func (t *ProviderThrottle) Begin(ctx context.Context, provider string) func() {
 		setting.Provider = provider
 		setting.MinSeconds, setting.MaxSeconds = defaultThrottle(provider)
 	}
-	if setting.MaxConcurrency == 0 {
-		setting.MaxConcurrency = defaultConcurrency(provider)
-	}
+	setting.MaxConcurrency = effectiveConcurrency(provider, setting.MaxConcurrency)
 	state := t.states[key]
 	t.mu.RUnlock()
 	if state == nil {
