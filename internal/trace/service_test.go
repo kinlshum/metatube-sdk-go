@@ -45,7 +45,8 @@ func TestVideoAndActorTracesStaySeparate(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, video.Created())
 	video.Event(Event{Component: ComponentMetaTube, Stage: StageRequestReceived, Message: "video lookup"})
-	video.Finish(FinishInput{Status: StatusSucceeded, SelectedProvider: "JavBus", SelectedProviderID: "SSIS-001", ResultCount: 1})
+	videoResultCount := 1
+	video.Finish(FinishInput{Status: StatusSucceeded, SelectedProvider: "JavBus", SelectedProviderID: "SSIS-001", ResultCount: &videoResultCount})
 
 	actor, ok := service.Start(StartInput{
 		Kind:       KindActor,

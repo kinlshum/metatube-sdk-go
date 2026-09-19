@@ -65,6 +65,14 @@ func Select(ctx context.Context, provider, id string) {
 	}
 }
 
+// SelectWithCount records the chosen provider result together with the exact
+// number of results, persisting zero as a real value.
+func SelectWithCount(ctx context.Context, provider, id string, count int) {
+	if handle := FromContext(ctx); handle != nil {
+		handle.SetResult(provider, id, count)
+	}
+}
+
 // Changes records a redacted enrichment field-change summary.
 func Changes(ctx context.Context, provider string, changes []FieldChange) {
 	if handle := FromContext(ctx); handle != nil {

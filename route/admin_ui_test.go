@@ -55,6 +55,23 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 	assert.Contains(t, body, "Show in LOGS", "traces must link back to the general log lines")
 	assert.Contains(t, body, "field-changes", "enrichment field changes must be rendered")
 	assert.Contains(t, body, "ETATUBE_ADMIN_TOKEN", "a missing admin token must produce a clear hint")
+
+	// Auto-follow must be wired to behaviour, not merely present in the markup.
+	assert.Contains(t, body, "traceEl(kind,'Follow').checked",
+		"the follow checkbox must be read when refreshing")
+	assert.Contains(t, body, "if(follow)state.offset=0;",
+		"following must keep the newest page selected")
+	assert.Contains(t, body, "if(state.open&&(follow||manual))openTrace(kind,state.open,false)",
+		"following (and a manual refresh) must refresh the open drawer")
+	assert.Contains(t, body, "traceEl(kind,'Follow').addEventListener('change'",
+		"toggling follow must take effect immediately")
+	assert.Contains(t, body, "const previousScroll=scroll?0:drawer.scrollTop;",
+		"a live drawer refresh must preserve the reader's scroll position")
+	assert.Contains(t, body, "drawer.scrollTop=previousScroll")
+	assert.Contains(t, body, "if(state.paused&&!state.manual)return;",
+		"pause must stop polling until an explicit refresh")
+	assert.Contains(t, body, "${follow?' · following newest':' · page held'}",
+		"the operator must be able to see the current follow mode")
 }
 
 // TestTracePayloadMatchesAdminExpectations guards the contract between the admin
@@ -166,4 +183,106 @@ func TestTraceTabsRenderAgainstLiveData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, trace.KindVideo, detail.Run.Kind)
 	assert.Equal(t, "jav-master-app", detail.Run.ClientName)
+}
+
+// TestTraceDownstreamStatesThroughTheAPI covers the four reporting situations the
+// review asked for: server-only, Windmill-only, fully reported, and failed.
+func TestTraceDownstreamStatesThroughTheAPI(t *testing.T) {
+	router, _ := newTraceTestRouter(t, nil)
+
+	startTrace := func(id, operation string) {
+		t.Helper()
+		recorder := doRequest(router, http.MethodPost, "/admin/api/traces/start", nil, map[string]any{
+			"trace_id": id, "kind": "video", "operation": operation, "query": "SSIS-" + id,
+		})
+		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	appendEvent := func(id, component, stage, level string) {
+		t.Helper()
+		event := map[string]any{"component": component, "stage": stage}
+		if level != "" {
+			event["level"] = level
+		}
+		recorder := doRequest(router, http.MethodPost, "/admin/api/traces/"+id+"/events", nil,
+			map[string]any{"event": event})
+		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	finishTrace := func(id, status string) {
+		t.Helper()
+		recorder := doRequest(router, http.MethodPost, "/admin/api/traces/"+id+"/finish", nil,
+			map[string]any{"status": status})
+		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	traceDetail := func(id string) map[string]any {
+		t.Helper()
+		recorder := doRequest(router, http.MethodGet, "/admin/api/traces/"+id, nil, nil)
+		require.Equal(t, http.StatusOK, recorder.Code)
+		return decodeData(t, recorder)
+	}
+	downstreamOf := func(data map[string]any) map[string]any {
+		t.Helper()
+		value, ok := data["downstream"].(map[string]any)
+		require.True(t, ok, "the response must carry a downstream object")
+		return value
+	}
+
+	// 1. Server-only lookup: downstream is not applicable and nothing is awaited.
+	startTrace("ds-server", "lookup")
+	finishTrace("ds-server", "succeeded")
+	data := traceDetail("ds-server")
+	assert.Equal(t, trace.DownstreamUnavailable, downstreamOf(data)["status"])
+	assert.Equal(t, false, data["awaiting_report"])
+
+	// 2. Identify with no downstream report: awaiting.
+	startTrace("ds-identify", "identify")
+	finishTrace("ds-identify", "succeeded")
+	data = traceDetail("ds-identify")
+	assert.Equal(t, trace.DownstreamNone, downstreamOf(data)["status"])
+	assert.Equal(t, true, data["awaiting_report"])
+
+	// 3. Windmill reported, Emby not.
+	startTrace("ds-windmill", "identify")
+	appendEvent("ds-windmill", "windmill", "windmill_step", "")
+	finishTrace("ds-windmill", "succeeded")
+	data = traceDetail("ds-windmill")
+	assert.Equal(t, trace.DownstreamWindmill, downstreamOf(data)["status"])
+	assert.Equal(t, true, data["awaiting_report"])
+
+	// 4. Emby reported as well: complete, and no longer awaiting.
+	appendEvent("ds-windmill", "emby", "emby_write", "")
+	data = traceDetail("ds-windmill")
+	assert.Equal(t, trace.DownstreamComplete, downstreamOf(data)["status"])
+	assert.Equal(t, false, data["awaiting_report"], "a fully reported trace must not be awaiting")
+
+	// 5. Downstream failure.
+	startTrace("ds-failed", "enrich")
+	appendEvent("ds-failed", "emby", "emby_write", "error")
+	finishTrace("ds-failed", "partial")
+	data = traceDetail("ds-failed")
+	assert.Equal(t, trace.DownstreamFailed, downstreamOf(data)["status"])
+	assert.Equal(t, false, data["awaiting_report"])
+
+	// The list view exposes the same derived state for every row.
+	list := doRequest(router, http.MethodGet, "/admin/api/traces?limit=50", nil, nil)
+	require.Equal(t, http.StatusOK, list.Code)
+	traces, ok := decodeData(t, list)["traces"].([]any)
+	require.True(t, ok)
+	byID := map[string]map[string]any{}
+	for _, raw := range traces {
+		row, ok := raw.(map[string]any)
+		require.True(t, ok)
+		byID[row["trace_id"].(string)] = row
+	}
+	for traceID, wantStatus := range map[string]string{
+		"ds-server":   trace.DownstreamUnavailable,
+		"ds-identify": trace.DownstreamNone,
+		"ds-windmill": trace.DownstreamComplete,
+		"ds-failed":   trace.DownstreamFailed,
+	} {
+		row, ok := byID[traceID]
+		require.True(t, ok, traceID)
+		downstream, ok := row["downstream"].(map[string]any)
+		require.True(t, ok, traceID)
+		assert.Equal(t, wantStatus, downstream["status"], traceID)
+	}
 }

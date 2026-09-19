@@ -166,26 +166,42 @@ trace tabs are present, `/admin/api/traces` and `/admin/api/trace-stats` answer
 recorded five stages (client, throttle, provider 296 ms, result selection,
 database save) and showed `awaiting_report`.
 
-## DeepSeek trace correction handoff
+## DeepSeek trace corrections (reviewed 2026-09-19)
 
-Code review after the deployment found four issues that must be corrected
-before the two trace tabs are considered complete:
+A code review after the first deployment found four issues; all four are fixed,
+tested and verified on this branch:
 
-1. **P1:** `engine/actor.go` can dereference a nil GFriends result while building
-   the image-injection trace event. Guard the result and add a regression test.
-2. **P2:** `Awaiting client report` is based only on `succeeded`/`partial`
-   status, so it remains visible after downstream reporting. Derive it from
-   actual Windmill/Emby reporting state and test the state transitions.
-3. **P2:** the Video and Actor Auto-follow checkboxes are currently cosmetic.
-   Wire them to list/drawer polling while preserving Pause and manual Refresh.
-4. **P3:** native server lookups do not persist the final summary result count,
-   so successful traces may display `Results: 0`.
+1. **P1** — `engine/actor.go` no longer dereferences a nil GFriends result while
+   building the image-injection trace event; a nil result reports zero images and
+   the failure event is kept. Regression test:
+   `engine/actor_test.go:TestGFriendsImageInjectionWithNilResultDoesNotPanic`.
+2. **P2** — `Awaiting client report` is derived from a persisted
+   `downstream_status` field rather than from the trace status, so
+   server-only lookups report `unavailable`, one reporter awaits the other,
+   `complete` never awaits, and a downstream error is `failed`.
+3. **P2** — Auto-follow is functional: the newest page stays selected, the open
+   drawer refreshes live while preserving scroll position, Pause stops both list
+   and drawer polling, and Refresh works while paused without resuming polling.
+4. **P3** — Native lookups persist their result count (including an explicit
+   zero), so a successful lookup no longer displays `Results: 0`.
 
-The exact implementation guidance and verification checklist are in the
-**DeepSeek corrective handoff (reviewed 2026-09-19)** section of
-[`docs/METATUBE_ENRICHMENT_TRACE_TODO.md`](docs/METATUBE_ENRICHMENT_TRACE_TODO.md).
-Do not expand scope into acquisition or file management while making these
-corrections. Afterward, continue the remaining image/translation,
+Verification:
+
+```sh
+go test ./internal/trace ./route ./engine   # ok, ok, ok
+go test -race ./internal/trace ./route ./engine
+go vet ./...
+```
+
+`go test ./...` still shows the unrelated pre-existing failures in
+`detector` (fixture `detector/345a376e579ff02a518b831b1b2b4602.jpg`),
+`provider/duga` and `provider/faleno` (live provider/network tests).
+
+Implementation details are in the **DeepSeek corrective handoff (reviewed
+2026-09-19)** section of
+[`docs/METATUBE_ENRICHMENT_TRACE_TODO.md`](docs/METATUBE_ENRICHMENT_TRACE_TODO.md),
+which now also carries the corrections-applied record. Do not expand scope into
+acquisition or file management. Next: the remaining image/translation,
 FlareSolverr, Windmill, and Emby client integrations in the documented order.
 
 ## Safety and behavior requirements

@@ -195,7 +195,12 @@ func TestTraceAdminStartEventFinishRoundTrip(t *testing.T) {
 	detail := doRequest(router, http.MethodGet, "/admin/api/traces/"+traceID, nil, nil)
 	require.Equal(t, http.StatusOK, detail.Code)
 	detailData := decodeData(t, detail)
-	assert.Equal(t, true, detailData["awaiting_report"], "downstream status was reported but not verified")
+	// The Windmill step reported first, then the finish call reported Emby field
+	// changes, so both downstream systems have reported: not awaiting any more.
+	assert.Equal(t, false, detailData["awaiting_report"])
+	downstream, ok := detailData["downstream"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, trace.DownstreamComplete, downstream["status"])
 
 	traceObject := detailData["trace"].(map[string]any)
 	eventsList, ok := traceObject["events"].([]any)

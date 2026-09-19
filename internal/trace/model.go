@@ -160,6 +160,7 @@ type Run struct {
 	WarningCount       int        `gorm:"column:warning_count" json:"warning_count"`
 	ErrorCount         int        `gorm:"column:error_count" json:"error_count"`
 	EventCount         int        `gorm:"column:event_count" json:"event_count"`
+	DownstreamStatus   string     `gorm:"column:downstream_status;size:16;index" json:"downstream_status,omitempty"`
 	ErrorCode          string     `gorm:"column:error_code;size:64" json:"error_code,omitempty"`
 	ErrorMessage       string     `gorm:"column:error_message;size:512" json:"error_message,omitempty"`
 	UpdatedAt          time.Time  `gorm:"column:updated_at" json:"updated_at"`
@@ -233,10 +234,12 @@ type FinishInput struct {
 	EmbyItemID         string
 	WindmillJobID      string
 	WindmillFlowPath   string
-	ResultCount        int
-	ErrorCode          string
-	ErrorMessage       string
-	DurationMS         float64
+	// ResultCount is a pointer so that an explicit zero (a lookup that genuinely
+	// found nothing) is distinguishable from "the caller supplied no count".
+	ResultCount  *int
+	ErrorCode    string
+	ErrorMessage string
+	DurationMS   float64
 }
 
 // RunDetail is a summary plus its ordered events.

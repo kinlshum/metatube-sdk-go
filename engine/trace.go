@@ -64,12 +64,13 @@ func traceFallbackResult(ctx context.Context, provider string, count int, err er
 	trace.Emit(ctx, event)
 }
 
-// traceSelection records which provider result the server chose.
+// traceSelection records which provider result the server chose, together with
+// the exact result count, so the summary is correct without reading events.
 func traceSelection(ctx context.Context, provider, id string, count int) {
 	if provider == "" {
 		return
 	}
-	trace.Select(ctx, provider, id)
+	trace.SelectWithCount(ctx, provider, id, count)
 	trace.Emit(ctx, trace.Event{
 		Component: trace.ComponentMetaTube,
 		Stage:     trace.StageResultSelected,

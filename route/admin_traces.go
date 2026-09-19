@@ -361,6 +361,13 @@ func postTraceEvents(service *trace.Service) gin.HandlerFunc {
 	}
 }
 
+// traceListItem is a summary plus its derived downstream state, so the list view
+// and the drawer share one source of truth for "awaiting client report".
+type traceListItem struct {
+	trace.Run
+	Downstream trace.DownstreamState `json:"downstream"`
+}
+
 // getTraces lists trace summaries with the documented filters.
 func getTraces(service *trace.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -370,8 +377,12 @@ func getTraces(service *trace.Service) gin.HandlerFunc {
 			abortWithTraceError(c, err)
 			return
 		}
+		items := make([]traceListItem, 0, len(runs))
+		for _, run := range runs {
+			items = append(items, traceListItem{Run: run, Downstream: trace.DownstreamFor(run)})
+		}
 		c.JSON(http.StatusOK, &responseMessage{Data: gin.H{
-			"traces":   runs,
+			"traces":   items,
 			"total":    total,
 			"limit":    filter.Limit,
 			"offset":   filter.Offset,
@@ -380,8 +391,9 @@ func getTraces(service *trace.Service) gin.HandlerFunc {
 	}
 }
 
-// getTrace returns one trace summary with its ordered events. The
-// awaiting_report flag tells the UI that downstream work has not been reported.
+// getTrace returns one trace summary with its ordered events. The downstream
+// state reports what Windmill and Emby actually sent, so a completed trace is
+// never presented as still awaiting a report.
 func getTrace(service *trace.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		detail, err := service.Get(c.Param("traceID"))
@@ -389,9 +401,11 @@ func getTrace(service *trace.Service) gin.HandlerFunc {
 			abortWithTraceError(c, err)
 			return
 		}
+		downstream := trace.DownstreamFor(detail.Run)
 		c.JSON(http.StatusOK, &responseMessage{Data: gin.H{
 			"trace":             detail,
-			"awaiting_report":   trace.RequiresReport(detail.Status),
+			"downstream":        downstream,
+			"awaiting_report":   downstream.Awaiting,
 			"downstream_stages": []string{trace.ComponentWindmill, trace.ComponentEmby},
 		}})
 	}
@@ -484,7 +498,7 @@ type traceFinishBody struct {
 	EmbyItemID         string              `json:"emby_item_id"`
 	WindmillJobID      string              `json:"windmill_job_id"`
 	WindmillFlowPath   string              `json:"windmill_flow_path"`
-	ResultCount        int                 `json:"result_count"`
+	ResultCount        *int                `json:"result_count"`
 	ErrorCode          string              `json:"error_code"`
 	ErrorMessage       string              `json:"error_message"`
 	DurationMS         float64             `json:"duration_ms"`
@@ -564,7 +578,8 @@ func postTraceFinish(service *trace.Service) gin.HandlerFunc {
 			"trace_id":        traceID,
 			"trace":           run,
 			"stored_events":   stored,
-			"awaiting_report": trace.RequiresReport(run.Status),
+			"downstream":      trace.DownstreamFor(*run),
+			"awaiting_report": trace.DownstreamFor(*run).Awaiting,
 		}})
 	}
 }

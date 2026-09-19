@@ -211,11 +211,17 @@ func (e *Engine) getActorInfoWithCallback(ctx context.Context, provider mt.Actor
 			started := time.Now()
 			gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(info.Name)
 			release()
+			// A failed provider call may return (nil, err): never dereference it,
+			// and report zero images instead of panicking a metadata request.
+			imageCount := 0
+			if gInfo != nil {
+				imageCount = len(gInfo.Images)
+			}
 			traceProviderResult(ctx, gfriends.Name, started, gErr, trace.JSONMap{
 				"operation":    "image_injection",
-				"result_count": len(gInfo.Images),
+				"result_count": imageCount,
 			})
-			if gErr == nil && len(gInfo.Images) > 0 {
+			if gErr == nil && imageCount > 0 {
 				info.Images = append(gInfo.Images, info.Images...)
 			}
 		}

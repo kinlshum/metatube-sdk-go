@@ -90,8 +90,9 @@ func NormalizeID(value string) string {
 	return trimmed
 }
 
-// RequiresReport identifies trace statuses that mean the server finished its own
-// work but a downstream client stage (Windmill or Emby) has not reported yet.
+// RequiresReport is retained for callers that only have a status to reason
+// about. The admin APIs use DownstreamFor, which also considers what Windmill
+// and Emby actually reported.
 func RequiresReport(status string) bool {
 	return status == StatusSucceeded || status == StatusPartial
 }

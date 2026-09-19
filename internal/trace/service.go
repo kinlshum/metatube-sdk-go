@@ -266,7 +266,7 @@ func (s *Service) appendEvent(traceID string, event Event) (Event, bool) {
 		return Event{}, false
 	}
 	s.counters.eventsStored.Add(1)
-	s.bumpRun(traceID, event.Level)
+	s.bumpRun(traceID, event.Level, downstreamSignal(event.Component, event.Level))
 	return event, true
 }
 
@@ -326,14 +326,30 @@ func (s *Service) trimCachesLocked() {
 	}
 }
 
-// bumpRun keeps the summary counters in step with the stored events.
-func (s *Service) bumpRun(traceID, level string) {
+// downstreamCaseSQL merges a new downstream signal into the stored value without
+// a read-modify-write round trip: complete stays complete, a failure is
+// recorded, and the two reporters combine into complete.
+const downstreamCaseSQL = `CASE
+	WHEN downstream_status = 'complete' THEN 'complete'
+	WHEN ? = 'failed' THEN 'failed'
+	WHEN downstream_status = ? THEN ?
+	WHEN downstream_status IN ('windmill', 'emby') THEN 'complete'
+	ELSE ?
+END`
+
+// bumpRun keeps the summary counters and downstream state in step with the
+// stored events, so readers never have to scan the event collection.
+func (s *Service) bumpRun(traceID, level, downstream string) {
 	updates := map[string]any{"event_count": gorm.Expr("event_count + 1")}
 	switch level {
 	case LevelError:
 		updates["error_count"] = gorm.Expr("error_count + 1")
 	case LevelWarn:
 		updates["warning_count"] = gorm.Expr("warning_count + 1")
+	}
+	if downstream != "" {
+		updates["downstream_status"] = gorm.Expr(downstreamCaseSQL,
+			downstream, downstream, downstream, downstream)
 	}
 	if err := s.store.UpdateRun(traceID, updates); err != nil {
 		s.counters.storeFailures.Add(1)
@@ -384,8 +400,9 @@ func (s *Service) Finish(traceID string, input FinishInput) (*Run, error) {
 	setIfPresent("windmill_flow_path", input.WindmillFlowPath, 512)
 	setIfPresent("error_code", input.ErrorCode, 64)
 	setIfPresent("error_message", input.ErrorMessage, 512)
-	if input.ResultCount > 0 {
-		updates["result_count"] = input.ResultCount
+	// A supplied count is written even when it is zero.
+	if input.ResultCount != nil {
+		updates["result_count"] = *input.ResultCount
 	}
 
 	if err := s.store.UpdateRun(traceID, updates); err != nil {
@@ -547,6 +564,7 @@ type RunHandle struct {
 	status             string
 	selectedProvider   string
 	selectedProviderID string
+	selectedCount      *int
 }
 
 // TraceID returns the trace identifier.
@@ -612,6 +630,9 @@ func (h *RunHandle) Run() Run {
 	if h.selectedProviderID != "" {
 		snapshot.SelectedProviderID = h.selectedProviderID
 	}
+	if h.selectedCount != nil {
+		snapshot.ResultCount = *h.selectedCount
+	}
 	return snapshot
 }
 
@@ -656,6 +677,29 @@ func (h *RunHandle) SetSelected(provider, id string) {
 	if err := h.service.store.UpdateRun(h.run.TraceID, map[string]any{
 		"selected_provider":    provider,
 		"selected_provider_id": id,
+	}); err != nil {
+		h.service.counters.storeFailures.Add(1)
+	}
+}
+
+// SetResult records the provider result chosen for a lookup together with the
+// exact number of results. Zero is persisted as zero: a lookup that genuinely
+// found nothing must not read back as "unknown".
+func (h *RunHandle) SetResult(provider, id string, count int) {
+	if h == nil || h.service == nil || !h.service.Enabled() || provider == "" {
+		return
+	}
+	provider = Truncate(SanitizeString(provider), 128)
+	id = Truncate(SanitizeString(id), 256)
+	stored := count
+	h.mu.Lock()
+	h.selectedProvider, h.selectedProviderID = provider, id
+	h.selectedCount = &stored
+	h.mu.Unlock()
+	if err := h.service.store.UpdateRun(h.run.TraceID, map[string]any{
+		"selected_provider":    provider,
+		"selected_provider_id": id,
+		"result_count":         count,
 	}); err != nil {
 		h.service.counters.storeFailures.Add(1)
 	}

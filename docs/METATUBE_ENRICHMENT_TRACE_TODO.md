@@ -134,6 +134,51 @@ summaries are never updated with the final result count. The drawer can show
   indication that the caller supplied a count.
 - Test single-provider, all-provider, fallback, empty-result, and actor paths.
 
+### Corrections applied (2026-09-19)
+
+All four findings above are fixed, with the verification recorded below.
+
+1. **Nil dereference in actor enrichment** — `engine/actor.go` now guards the
+   GFriends result before reading `Images` and reports `result_count: 0` for a
+   nil result while keeping the failure event. Covered by
+   `engine/actor_test.go:TestGFriendsImageInjectionWithNilResultDoesNotPanic`,
+   which drives a provider that returns `(nil, error)` and asserts no panic plus
+   a recorded zero-image failure event.
+2. **`Awaiting client report` from real downstream state** — traces now persist a
+   `downstream_status` column (`windmill`, `emby`, `complete`, `failed`, empty),
+   updated with the event counters in the same statement, so no event scan is
+   needed. `trace.DownstreamFor` derives the state: server-only `lookup`/`test`
+   traces report `unavailable`, a `succeeded`/`partial` trace that has heard from
+   neither system awaits a report, one system reporting awaits the other, both
+   reporting is `complete` and never awaiting, and an error-level Windmill/Emby
+   event is `failed`. The list and detail APIs return the derived state
+   (`downstream.status`, `downstream.awaiting_report`, `downstream.detail`), and
+   the UI shows `Awaiting client report`, `windmill reported`, `Downstream
+   complete`, `Downstream failed` or `Downstream n/a` accordingly. Covered by
+   `internal/trace/downstream_test.go:TestDownstreamReportStates` and
+   `route/admin_ui_test.go:TestTraceDownstreamStatesThroughTheAPI` (server-only,
+   Windmill-only, Emby-then-Windmill complete, and downstream-failed cases).
+3. **Auto-follow is functional** — `refreshTraces` reads the checkbox: when it is
+   checked the newest page stays selected and the open drawer is re-fetched so new
+   stages appear live (preserving the reader's scroll position); when it is
+   unchecked the page, open trace and detail snapshot stay put. Pause stops both
+   list and drawer polling, and Refresh works while paused without resuming
+   polling. Toggling the checkbox takes effect immediately, and the status line
+   reports `following newest` or `page held`. Covered by behaviour assertions in
+   `route/admin_ui_test.go:TestAdminPageExposesTraceTabs` that require the
+   checkbox to be read, the offset reset, the drawer refresh call, the scroll
+   preservation, and the pause guard.
+4. **Native lookup result count is persisted** — `trace.RunHandle.SetResult`
+   writes `selected_provider`, `selected_provider_id` and `result_count`
+   (including an explicit zero) whenever the engine records a selection, and
+   `FinishInput.ResultCount` is now a `*int` so "no count supplied" is
+   distinguishable from zero. Provider events still carry
+   `details.result_count`. Covered by
+   `internal/trace/downstream_test.go:TestResultCountKeepsExplicitZero` and
+   `engine/actor_test.go:TestActorSearchPersistsResultCount` (single provider,
+   all-provider selection, and the empty-result path), plus a real JavBus lookup
+   that now shows `results=1`.
+
 ### Verification required before handoff completion
 
 Run and report:

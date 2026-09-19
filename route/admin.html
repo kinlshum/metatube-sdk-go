@@ -170,7 +170,7 @@
         <td>${esc(trace.operation||'')}</td>
         <td class="note">${esc(trace.client_name||'unknown')}${trace.client_ip?`<div class="note mono">${esc(trace.client_ip)}</div>`:''}</td>
         <td>${esc(trace.selected_provider||'—')}${trace.selected_provider_id?`<div class="note mono">${esc(trace.selected_provider_id)}</div>`:''}</td>
-        <td>${traceStatusBadge(trace.status)} ${errors}</td>
+        <td>${traceStatusBadge(trace.status)} ${traceDownstreamMark(trace.downstream)} ${errors}</td>
         <td>${traceMs(trace.duration_ms)}</td>
         <td class="note">${esc(trace.windmill_job_id||'—')}</td>
         <td class="note">${esc(trace.emby_item_id||'—')}</td></tr>`}).join('')}
@@ -183,7 +183,11 @@
   async function refreshTraces(kind){const state=traceState[kind];
     if(state.loading)return;
     if(state.paused&&!state.manual)return;
-    const manual=state.manual;state.manual=false;state.loading=true;
+    const manual=state.manual,follow=traceEl(kind,'Follow').checked;
+    state.manual=false;state.loading=true;
+    // Auto-follow keeps the newest page selected; without it the operator's page
+    // is preserved exactly as they left it.
+    if(follow)state.offset=0;
     try{
       const r=await fetch('/admin/api/traces?'+traceQuery(kind).toString());
       if(r.status===401)throw Error('Admin token required. Open /admin?token=<METATUBE_ADMIN_TOKEN> once, then reload.');
@@ -191,14 +195,17 @@
       if(!r.ok)throw Error(`HTTP ${r.status}`);
       const data=(await r.json()).data||{},counters=data.counters||{};
       state.rows=data.traces||[];state.total=Number(data.total||0);state.error='';
-      if(state.offset>=state.total&&state.total>0)state.offset=Math.max(0,state.total-state.limit);
+      if(!follow&&state.offset>=state.total&&state.total>0)state.offset=Math.max(0,state.total-state.limit);
       traceEl(kind,'StatusLine').className='note';
-      traceEl(kind,'StatusLine').innerHTML=`${state.total} ${kind} trace(s) · ${counters.events_stored||0} events stored · ${counters.pruned_runs||0} pruned · storage errors ${counters.store_failures||0}${state.paused?' · <b>paused</b>':''}`;
+      traceEl(kind,'StatusLine').innerHTML=`${state.total} ${kind} trace(s) · ${counters.events_stored||0} events stored · ${counters.pruned_runs||0} pruned · storage errors ${counters.store_failures||0}${state.paused?' · <b>paused</b>':''}${follow?' · following newest':' · page held'}`;
     }catch(e){
       state.rows=[];state.total=0;state.error=e.message;
       traceEl(kind,'StatusLine').className='note error';traceEl(kind,'StatusLine').textContent=e.message}
     drawTraces(kind);state.loading=false;
-    if(manual&&state.open)openTrace(kind,state.open,false)}
+    // The open drawer is refreshed while auto-following so new stages appear
+    // live, and on an explicit Refresh. While paused nothing is refreshed until
+    // the operator asks for it.
+    if(state.open&&(follow||manual))openTrace(kind,state.open,false)}
   function traceFilterChanged(kind){traceState[kind].offset=0;traceState[kind].manual=true;refreshTraces(kind)}
   function closeTraceDrawer(kind){traceState[kind].open='';traceEl(kind,'Drawer').innerHTML=''}
   function traceMeta(label,value){return `<div><span>${esc(label)}</span>${value?`<div>${value}</div>`:'<div class="note">—</div>'}</div>`}
@@ -217,10 +224,22 @@
     if(event.details&&event.details.changes)parts.push(fieldChangesTable(event.details.changes));
     else if(event.details&&Object.keys(event.details).length)parts.push(`<span class="mono">${esc(JSON.stringify(event.details))}</span>`);
     return parts.join(' · ')}
-  function renderTraceDrawer(kind,trace,awaiting){const events=trace.events||[],groups=timelineGroups(events),totals={};
+  function traceDownstreamMark(downstream){const state=downstream||{},detail=esc(state.detail||'');
+    if(state.awaiting_report)return `<span class="badge awaiting" title="${detail}">Awaiting client report</span>`;
+    switch(state.status){
+      case 'complete': return `<span class="badge ok" title="${detail}">downstream ok</span>`;
+      case 'failed': return `<span class="badge bad" title="${detail}">downstream failed</span>`;
+      case 'windmill': case 'emby': return `<span class="badge warn" title="${detail}">${esc(state.status)} reported</span>`;
+    }
+    return ''}
+  function traceDownstreamLabel(downstream){const state=downstream||{},detail=esc(state.detail||'');
+    if(!state.status)return '';
+    const text={complete:'complete',failed:'failed',windmill:'windmill reported; awaiting Emby',emby:'emby reported; awaiting Windmill',unavailable:'not applicable (server-only lookup)'}[state.status]||esc(state.status);
+    return `${typeof text==='string'?esc(text):text}${detail?`<div class="note">${detail}</div>`:''}`}
+  function renderTraceDrawer(kind,trace,downstream){const events=trace.events||[],groups=timelineGroups(events),totals={};
     events.forEach(event=>{const key=event.component||'metatube';totals[key]=(totals[key]||0)+Number(event.duration_ms||0)});
     const summary=Object.entries(totals).filter(entry=>entry[1]>0).map(entry=>`${entry[0]} ${traceMs(entry[1])}`).join(' · ');
-    return `<div class="drawer-head"><h2>${esc(trace.operation||'trace')} · ${esc(trace.kind||kind)}</h2>${traceStatusBadge(trace.status)}${awaiting?' <span class="badge awaiting" title="MetaTube finished this trace; Windmill or Emby has not reported downstream stages yet.">Awaiting client report</span>':''}<span class="grow"></span><button data-action="copy">Copy trace ID</button><button data-action="export">Export JSON</button><button data-action="logs">Show in LOGS</button><button data-action="delete">Delete</button><button data-action="close" class="tab">Close</button></div>
+    return `<div class="drawer-head"><h2>${esc(trace.operation||'trace')} · ${esc(trace.kind||kind)}</h2>${traceStatusBadge(trace.status)} ${traceDownstreamMark(downstream)}<span class="grow"></span><button data-action="copy">Copy trace ID</button><button data-action="export">Export JSON</button><button data-action="logs">Show in LOGS</button><button data-action="delete">Delete</button><button data-action="close" class="tab">Close</button></div>
       <div class="trace-meta">
         ${traceMeta('Trace ID',`<span class="mono">${esc(trace.trace_id)}</span>`)}
         ${traceMeta('Query',esc(trace.query||'—'))}
@@ -233,22 +252,26 @@
         ${traceMeta('Windmill job',trace.windmill_job_id?`<span class="mono">${esc(trace.windmill_job_id)}</span>`:'—')}
         ${traceMeta('Emby item',trace.emby_item_id?`<span class="mono">${esc(trace.emby_item_id)}</span>`:'—')}
         ${traceMeta('Errors',trace.error_count?`<span class="error">${esc(trace.error_code||'error')} · ${esc(trace.error_message||'')}</span>`:'0')}
+        ${traceMeta('Downstream',traceDownstreamLabel(downstream))}
         ${traceMeta('Events',esc(trace.event_count||events.length))}
       </div>
       ${summary?`<div class="note" style="padding:12px 18px 0">Stage totals: ${esc(summary)}</div>`:''}
       <div class="timeline">${groups.map(group=>`<section class="timeline-group"><h3><span aria-hidden="true">${group.icon}</span>${esc(group.label)}<span class="totals">${group.events.length} event(s) · ${traceMs(group.total)}</span></h3>${group.events.map(event=>`<div class="timeline-event ${event.level==='error'?'err':''}"><span class="note">${new Date(event.at).toLocaleTimeString()}</span><span class="stage">${esc(event.stage||'')}</span><span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span><span class="detail">${traceEventDetail(event)}</span></div>`).join('')}</section>`).join('')||'<div class="note">No events recorded for this trace.</div>'}</div>`}
   async function openTrace(kind,traceId,scroll){const state=traceState[kind];state.open=traceId;const drawer=traceEl(kind,'Drawer');
+    // A live auto-follow refresh keeps the reader's scroll position; opening a
+    // trace from a row click starts at the top.
+    const previousScroll=scroll?0:drawer.scrollTop;
     try{
       const r=await fetch('/admin/api/traces/'+encodeURIComponent(traceId));
       if(!r.ok)throw Error(r.status===404?'Trace not found (it may have been pruned or deleted).':`HTTP ${r.status}`);
       const data=(await r.json()).data||{};
-      drawer.innerHTML=renderTraceDrawer(kind,data.trace||data,!!data.awaiting_report);
+      drawer.innerHTML=renderTraceDrawer(kind,data.trace||data,data.downstream||{});
       drawer.querySelector('[data-action="copy"]').addEventListener('click',()=>copyTraceId(traceId,kind));
       drawer.querySelector('[data-action="export"]').addEventListener('click',()=>window.open('/admin/api/traces/'+encodeURIComponent(traceId)+'/export','_blank'));
       drawer.querySelector('[data-action="logs"]').addEventListener('click',()=>showTraceInLogs(traceId));
       drawer.querySelector('[data-action="delete"]').addEventListener('click',()=>deleteTrace(kind,traceId));
       drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind));
-      if(scroll)drawer.scrollTop=0
+      drawer.scrollTop=previousScroll
     }catch(e){drawer.innerHTML=`<div class="drawer-head"><h2>Trace</h2><span class="grow"></span><button data-action="close" class="tab">Close</button></div><div class="note" style="padding:16px 18px">${esc(e.message)}</div>`;drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind))}}
   function copyTraceId(traceId,kind){const done=()=>{traceEl(kind,'StatusLine').textContent=`Copied ${traceId}`;setTimeout(()=>refreshTraces(kind),1600)};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(traceId).then(done).catch(()=>{})}
@@ -270,6 +293,9 @@
     traceEl(kind,'Prev').addEventListener('click',()=>{const state=traceState[kind];state.offset=Math.max(0,state.offset-state.limit);state.manual=true;refreshTraces(kind)});
     traceEl(kind,'Next').addEventListener('click',()=>{const state=traceState[kind];state.offset+=state.limit;state.manual=true;refreshTraces(kind)});
     traceEl(kind,'Pause').addEventListener('click',event=>{const state=traceState[kind];state.paused=!state.paused;event.target.textContent=state.paused?'Resume':'Pause';event.target.classList.toggle('on',state.paused);if(!state.paused){state.manual=true;refreshTraces(kind)}});
+    // Turning auto-follow on jumps straight back to the newest page and refreshes
+    // the open drawer; turning it off leaves everything where it is.
+    traceEl(kind,'Follow').addEventListener('change',()=>{const state=traceState[kind];if(traceEl(kind,'Follow').checked){state.offset=0;state.manual=true;refreshTraces(kind)}});
     traceEl(kind,'Rows').addEventListener('click',event=>{const row=event.target.closest('tr');if(row&&row.dataset.trace)openTrace(kind,row.dataset.trace,true)});
   });
   function traceTabKind(tab){return tab==='traceActor'?'actor':tab==='traceVideo'?'video':''}
