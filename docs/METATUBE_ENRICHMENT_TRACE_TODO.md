@@ -855,3 +855,46 @@ Verified live on 2026-09-19 after Graylog1 was upgraded to 7.1.9:
 
 
 report their stages, the UI must say downstream status is unavailable.
+
+## Admin stats status (settings page)
+
+The settings/STATS surfaces delivered on 2026-09-17 are committed, deployed and
+verified; they share the admin page with the trace tabs:
+
+- **Provider health lights**: `engine/metrics.go` probes each provider and reports
+  `provider_health` (URL, `up`, HTTP status, latency, `checked_at`), so an
+  unreachable provider is visible in the settings view.
+- **Provider usage**: `providers` lists `requests`, `active`, `average_ms`,
+  `last_ms` and `last_request_at` per provider, including providers with no
+  traffic.
+- **Lookups by client**: `provider_clients` attributes provider requests to the
+  calling client (IP, source port, user agent, errors, `last_seen_at`).
+- **Clients and recent requests**: `clients` carries ip, port, user_agent,
+  requests, errors, average_ms, last_path, last_status and last_seen_at, and every
+  `recent` entry carries its source port.
+- **FlareSolverr**: calls, errors, sessions, successes, average/last ms, version,
+  last message and the recent error tail.
+- **Process health**: uptime, goroutines, memory, active requests and error count.
+
+Server-side code lives in `engine/metrics.go` (collection), `route/admin.go`
+(`getAdminStats`) and `route/admin.html` (SETTINGS and STATS views, embedded in
+the binary with `//go:embed admin.html`).
+
+Verified after the 2026-09-19 deploy: `http://192.168.10.166:8080/admin` and
+`https://metatube-admin.madtechinc.com/admin` both serve the embedded page, the
+served bytes hash to `f6d1703b937c57b1412a2158435c509c4115e2b54cd0d3f8145ca0619137f1e1`
+(identical to `route/admin.html`), and `/admin/api/stats` returns every section
+above. The `metatube` container runs image `sha256:acac8cd8…`, started
+`2026-09-19T18:39:09Z`, with the application-log Graylog path configured on
+Graylog1 `192.168.10.155`.
+
+Known limitation: these counters live in the process, so every container
+restart/redeploy resets them; the tables start empty and fill as traffic arrives.
+Persisting them (for example into the existing database) is not implemented yet
+and is a follow-up.
+
+Still open in this document's own checklists (16 items): the remaining server
+instrumentation entries (`engine/image.go`, translation stages, FlareSolverr
+solve/session/error events, retries/challenges/parse errors/cancellations), the
+Windmill trace helper, the Emby plugin reporting, and mobile polish.
+
