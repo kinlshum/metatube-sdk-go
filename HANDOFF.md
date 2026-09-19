@@ -221,6 +221,38 @@ which now also carries the corrections-applied record. Do not expand scope into
 acquisition or file management. Next: the remaining image/translation,
 FlareSolverr, Windmill, and Emby client integrations in the documented order.
 
+## DeepSeek next feature: expandable trace/run debugger
+
+The operator wants each row in `LOGS-METATUBE-VIDEO` and
+`LOGS-METATUBE-ACTOR` to expand inline and show the complete run, its related
+traces, and every ordered step. Each run, trace, and step must provide a
+correlated-log action so a failed stage can open the exact native MetaTube log
+window and then return without losing table state.
+
+This is a master/detail debugger, not a replacement for general `LOGS` and not
+an acquisition/download feature. Keep the current drawer as an optional
+full-trace view, but add an accessible chevron and inline expansion beneath the
+summary row.
+
+The complete coding contract is in **DeepSeek handoff: expandable run, trace,
+step, and correlated-log viewer** in
+[`docs/METATUBE_ENRICHMENT_TRACE_TODO.md`](docs/METATUBE_ENRICHMENT_TRACE_TODO.md).
+It specifies explicit run grouping, lazy loading, ordered step timelines,
+expandable safe event details, run/trace/step log filtering, API and migration
+constraints, accessibility, polling behavior, security, and required tests.
+
+Current storage must be understood correctly: structured traces are durable in
+`/config/traces.db`; Admin `LOGS` is only a 1,000-line in-memory buffer; Docker
+keeps one 50 MB `json-file`; and no Graylog/GELF integration exists. The
+structured SQLite events are therefore the timeline source of truth. Native
+logs are recent supporting evidence and must be labeled as ephemeral. The spec
+documents a future optional Graylog adapter without making Graylog mandatory.
+
+Do not group work using fuzzy actor/time similarity, expose admin or Windmill
+credentials in links, or let expand/collapse/log actions mutate trace records.
+Implement and verify this before declaring the trace UI an operational
+end-to-end debugger.
+
 ## Safety and behavior requirements
 
 - Trace storage failure must never make a metadata lookup fail.

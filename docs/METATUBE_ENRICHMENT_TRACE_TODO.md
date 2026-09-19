@@ -179,6 +179,189 @@ All four findings above are fixed, with the verification recorded below.
    all-provider selection, and the empty-result path), plus a real JavBus lookup
    that now shows `results=1`.
 
+## DeepSeek handoff: expandable run, trace, step, and correlated-log viewer
+
+### User goal
+
+The Video and Actor trace tables must work as an operational debugger, not only
+as a summary list. An operator must be able to expand a run without leaving the
+table, see every related trace and ordered step, expand an individual step to
+inspect its safe structured details, and open the correlated MetaTube logs for
+the complete run, one trace, or one step.
+
+The existing right-side trace drawer may remain as an optional full-detail
+view, but it must not be the only way to understand a run. The primary table
+needs an obvious chevron and an inline expandable detail row.
+
+### Information hierarchy and grouping
+
+```text
+Run / workflow
+  -> trace(s): lookup, identify, enrich, refresh, image, translation
+       -> ordered events/steps: client, throttle, provider, fallback,
+          FlareSolverr, translation, Windmill, Emby
+            -> structured event detail and correlated native logs
+```
+
+For current data, a run may consist of one trace. Group multiple traces only
+when they share, in priority order: `windmill_job_id`; an explicit future
+`run_id`/`workflow_id`; or a `parent_trace_id` relationship. Otherwise treat
+the trace as a one-trace run. Do not group merely because actor name, catalog
+code, client IP, or timestamps look similar.
+
+### Table interaction and accessibility
+
+- Add a first column containing an actual `<button>` with a chevron,
+  `aria-expanded`, `aria-controls`, and a label such as `Expand trace
+  <short-id>`.
+- Clicking the chevron or non-interactive summary-row area toggles an inline
+  `<tr>` immediately below it. Links/buttons inside the row must not also
+  toggle it.
+- Preserve expanded rows and scroll position across five-second refreshes by
+  trace/run ID, not DOM position. Permit multiple expanded runs.
+- Render a loading row while fetching details and an inline Retry action on
+  failure.
+- Fetch details lazily on first expansion, cache them, and re-fetch only for a
+  live run, Auto-follow, or manual Refresh. Do not download all event payloads
+  for every summary row.
+- Native button behavior must support keyboard Enter/Space. Add `Collapse all`
+  only when at least two rows are expanded.
+
+### Expanded run summary
+
+Show the full run/trace ID with Copy, parent trace and child count, client and
+observed IP/port, operation and normalized query, start/completion/duration,
+final and downstream status, selected provider/ID, Windmill job/flow, Emby
+item/person ID, and result/warning/error/event counts.
+
+Actions: `Open full trace`, `View run logs`, `Export JSON`, and `Collapse`.
+
+### Trace and step timeline
+
+Render traces and their events in monotonic sequence. Each step row must show:
+
+- sequence number;
+- timestamp and delta from the previous step;
+- component and stage;
+- provider and attempt number where applicable;
+- duration and HTTP status;
+- level/status icon plus text;
+- short sanitized message;
+- `Details` and `View logs` actions.
+
+Use a vertical timeline. Keep component colors consistent but never depend on
+color alone. Associate provider and throttle events visually. Show retries and
+failures as separate steps instead of replacing an earlier attempt.
+
+`Details` expands directly below the step and renders safe key/value details,
+field-change tables, sanitized errors, request path/status, timing, and attempt
+information. Never render raw event HTML or expose authorization headers,
+cookies, tokens, full metadata payloads, or image bodies.
+
+### Correlated log viewer
+
+#### Current log sources and retention
+
+Do not design this feature on the assumption that Graylog already stores the
+logs. The deployed system currently has three distinct data sources:
+
+1. **Structured trace events (durable):** SQLite at
+   `/config/traces.db`, mounted from
+   `/mnt/cache_nvme_apps/appdata/metatube-server-charleshuang233/traces.db`.
+   This is the authoritative source for the run/trace/step timeline and follows
+   the configured trace retention/cap limits.
+2. **Admin native log buffer (ephemeral):** `internal/logbuffer` retains only
+   the newest 1,000 lines in process memory. `/admin/api/logs` reads this buffer.
+   It is cleared by a MetaTube restart.
+3. **Container stdout (short retention):** Docker `json-file` currently keeps
+   one file up to 50 MB for the `metatube` container. The application does not
+   currently read that file, and its host path must never be exposed directly
+   through the Admin API.
+
+There is currently no Graylog/GELF output, Graylog API client, or log scraping
+store in this repository. Therefore:
+
+- use SQLite trace events to reconstruct the durable step history;
+- use the native buffer only for recent correlated diagnostic lines;
+- clearly label native-log retention as `Recent logs; cleared on restart`;
+- never mark a trace incomplete merely because its native lines rotated away;
+- do not scrape Docker log files from the browser or grant the container access
+  to `/var/lib/docker`.
+
+Graylog may be added later as an optional backend through a narrow log-search
+interface. If implemented, send structured GELF from stdout with `trace_id`,
+`run_id`, `component`, `stage`, `provider`, and `level` fields, then query
+Graylog server-side using credentials stored only in environment/secrets. The
+Admin UI must work without Graylog and must never receive Graylog credentials.
+
+Support these scopes:
+
+- **Run logs:** native log lines for every trace in the grouped run.
+- **Trace logs:** lines containing the selected trace ID.
+- **Step logs:** the trace ID plus a bounded window around the event (default
+  event start minus two seconds through event end plus two seconds).
+
+The action may switch to `LOGS` or open a log drawer, but must show active
+scope, IDs, time range, match count, and `Back to trace`. Preserve the source
+Video/Actor tab, filters, expanded rows, and scroll position when returning.
+
+Extend native log filtering server-side rather than downloading all logs:
+
+```text
+GET /admin/api/logs?trace_id=<id>&since=<RFC3339>&until=<RFC3339>&q=<text>&limit=1000
+GET /admin/api/logs?trace_id=<id1>&trace_id=<id2>&limit=1000
+```
+
+- Return effective filters and a `truncated` indicator.
+- Match trace IDs exactly and safely escape pattern metacharacters.
+- Continue emitting `trace=<trace-id>` in ordinary log lines.
+- If none exist, display `No correlated native log lines`; do not imply the
+  structured event did not occur.
+- Never expose the admin token in a copied/opened URL.
+
+When a Windmill job ID exists, show `Copy job ID`. An optional `Open Windmill
+run` link may use a server-configured URL template, but do not guess Windmill
+routes or place Windmill credentials in HTML/query parameters.
+
+### API and storage requirements
+
+- Keep the current trace detail API compatible.
+- Add `GET /admin/api/trace-runs/:runID` only if grouping would otherwise fetch
+  many pages. Return a bounded response and explicit `truncated` flag.
+- Prefer an indexed `run_id`/`workflow_id` on new traces while retaining
+  `parent_trace_id` and `windmill_job_id` compatibility.
+- Avoid N+1 event queries: one bounded summary query and one ordered event query
+  per expanded grouped run are acceptable.
+- Existing SQLite data must migrate without deletion.
+- Expanding, viewing logs, and collapsing are read-only. Deleting a run remains
+  a separate confirmed action.
+
+### Auto-follow behavior
+
+- With Auto-follow enabled, refresh expanded running/queued runs and append new
+  events without collapsing open steps.
+- Stop normal polling after a terminal status, with a short grace period for
+  downstream Windmill/Emby reports.
+- Pause stops list, expanded-run, and log polling. Manual Refresh works while
+  paused without resuming it.
+- If the operator is reading older steps, show `New steps available` rather
+  than forcibly scrolling. Auto-scroll only when already near the bottom.
+
+### Required tests and acceptance
+
+- Chevron buttons expose correct ARIA state and toggle the correct inline row.
+- Multiple rows remain expanded across polling and filter changes.
+- Step Details toggles without toggling the parent run.
+- Run/trace/step log filters return only correlated lines and enforce limits
+  and time windows.
+- Grouped runs contain only explicitly related traces in sequence.
+- Event details and logs remain sanitized; secrets never appear in HTML, APIs,
+  exports, or copied URLs.
+- Live test one actor and one video lookup: watch new steps arrive, open step
+  logs, and return without losing table state.
+- A provider/FlareSolverr failure displays the exact expandable failed step and
+  opens the corresponding trace/time-window logs.
+
 ### Verification required before handoff completion
 
 Run and report:
