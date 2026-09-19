@@ -166,6 +166,23 @@ trace tabs are present, `/admin/api/traces` and `/admin/api/trace-stats` answer
 recorded five stages (client, throttle, provider 296 ms, result selection,
 database save) and showed `awaiting_report`.
 
+Second deploy (2026-09-19 04:05 UTC) shipped the four trace review corrections
+from commit `cb1a5f2`:
+
+- Image rebuilt and only `metatube` recreated; compose unchanged
+  (`compose.yaml.backup-20260919-000306` kept).
+- Rollback image tag:
+  `kinlshum/metatube-server-providers:rollback-20260919-000306`.
+- The existing trace store gained the `downstream_status` column through
+  AutoMigrate (27 columns verified) and kept its rows.
+- Verified live: the served page carries the Auto-follow logic (sha256
+  `6132d42f…`), a real JavBus lookup reports `results=1` with the five-stage
+  timeline, `lookup` traces report downstream `unavailable` while `identify`
+  traces await a client report, Windmill plus Emby reporting flips the same
+  trace to `complete` (no longer awaiting), and an explicit `result_count: 0`
+  from the ingest API is preserved. The temporary verification traces were
+  deleted afterwards.
+
 ## DeepSeek trace corrections (reviewed 2026-09-19)
 
 A code review after the first deployment found four issues; all four are fixed,
