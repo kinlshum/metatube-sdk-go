@@ -39,6 +39,18 @@
     .timeline-event .stage{font-weight:650}.timeline-event .dur{color:var(--muted);font-variant-numeric:tabular-nums}
     .timeline-event .detail{grid-column:2/-1;color:var(--muted);font-size:12px;word-break:break-word}
     .timeline-event.err{background:#2a1518}.field-changes{width:100%;border-collapse:collapse;margin-top:4px}
+    .error-index{margin:14px 18px 0;border:1px solid #7d3438;border-radius:9px;background:#2a1518;overflow:hidden}
+    .error-index.ok{border-color:#2f6a49;background:#14241c}
+    .error-index-head{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:10px 13px;background:#3a1a1e;font-size:13px}
+    .error-index.ok .error-index-head{background:#16281f}
+    .error-entry{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:9px 13px;border-top:1px solid #4a2427}
+    .error-entry .where{font-weight:650;font-size:13px;word-break:break-word}
+    .error-entry .why{grid-column:2/-1;color:var(--muted);font-size:12px;word-break:break-word}
+    .error-entry button{padding:5px 10px;font-size:12px}
+    .error-entry[data-focused="true"]{background:#3a1a1e}
+    .timeline-event.focus-flash,.step.focus-flash>summary,.run-node.focus-flash>summary{outline:2px solid var(--green2);outline-offset:-2px}
+    .timeline-event.focus-flash{background:#1d3b2c}
+    @media(max-width:760px){.error-entry{grid-template-columns:auto 1fr}.error-entry button{grid-column:2/-1;justify-self:start}}
     .field-changes th,.field-changes td{padding:4px 8px;font-size:12px;border-bottom:1px solid #233c30}
     .pager{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}.pager .spacer{flex:1}.pager button{padding:7px 12px}
     .mono{font:12px/1.5 ui-monospace,SFMono-Regular,monospace;word-break:break-all}
@@ -253,6 +265,19 @@
     // the operator asks for it.
     if(state.open&&(follow||manual))openTrace(kind,state.open,false)}
   function traceFilterChanged(kind){traceState[kind].offset=0;traceState[kind].manual=true;refreshTraces(kind)}
+  // Focus control for the error index: open the run/step group that owns the
+  // failure, then scroll to and focus the exact event in the timeline.
+  function focusTraceError(kind,eventKey,stepKey){const drawer=traceEl(kind,'Drawer');if(!drawer)return;
+    if(runState.currentTrace||stepKey){if(runState.currentTrace)runState.openTraces[runState.currentTrace]=true;
+      if(stepKey)runState.openSteps[stepKey]=true;renderRunPanel(kind);restoreOpenSteps(kind)}
+    const panel=drawer.querySelector('[data-run-panel]');
+    const step=stepKey&&panel?[...panel.querySelectorAll('.step')].find(node=>node.dataset.step===stepKey):null;
+    const event=eventKey?[...drawer.querySelectorAll('.timeline-event')].find(node=>node.dataset.eventKey===eventKey):null;
+    const target=event||step;
+    if(!target){const line=traceEl(kind,'StatusLine');if(line){line.className='note error';
+      line.textContent='That error has no event in the retained timeline (it may have been pruned or truncated).'}return}
+    [event,step].filter(Boolean).forEach(node=>{node.classList.add('focus-flash');setTimeout(()=>node.classList.remove('focus-flash'),2600)});
+    target.tabIndex=-1;target.scrollIntoView({behavior:'smooth',block:'center'});target.focus()}
   function closeTraceDrawer(kind){traceState[kind].open='';const drawer=traceEl(kind,'Drawer');resetTraceDrawerPlacement(kind);drawer.innerHTML=''}
   function traceMeta(label,value){return `<div><span>${esc(label)}</span>${value?`<div>${value}</div>`:'<div class="note">—</div>'}</div>`}
   function timelineGroupKey(event){return (event.component==='provider'||event.component==='throttle')?'provider:'+(event.provider||'unknown'):'component:'+event.component}
@@ -282,10 +307,51 @@
     if(!state.status)return '';
     const text={complete:'complete',failed:'failed',windmill:'windmill reported; awaiting Emby',emby:'emby reported; awaiting Windmill',unavailable:'not applicable (server-only lookup)'}[state.status]||esc(state.status);
     return `${typeof text==='string'?esc(text):text}${detail?`<div class="note">${detail}</div>`:''}`}
-  function renderTraceDrawer(kind,trace,downstream){const events=trace.events||[],groups=timelineGroups(events),totals={};
+  // --- error identification for expanded traces (shared by video and actor) ---
+  // An event is an error when its level is error, its stage ends in _failed, or
+  // it reports HTTP 400 or greater. A slow duration alone is never an error.
+  function traceErrorCause(event){const stage=String(event.stage||''),status=Number(event.http_status||0);
+    if(event.level==='error')return 'level=error';
+    if(/_failed$/.test(stage))return 'stage ends in _failed';
+    if(status>=400)return `HTTP ${status}`;
+    return ''}
+  function traceEventKey(event){return [event.at||'',event.sequence==null?'':event.sequence,event.component||'',event.stage||'',event.provider||'',event.http_status||'',event.message||''].join('|')}
+  function traceErrorEntries(trace,events){const entries=[],seen=new Set();
+    // The timeline and the trace-level error summary are separate sources; the
+    // same failure is listed once, preferring the focusable timeline event.
+    const remember=entry=>{const key=[entry.stage||'',entry.status||'',entry.message||'',entry.provider||''].join('|');
+      if(seen.has(key))return;seen.add(key);entries.push(entry)};
+    for(const event of events){const cause=traceErrorCause(event);if(!cause)continue;
+      remember({cause,component:event.component||'metatube',provider:event.provider||'',stage:event.stage||'event',
+        status:Number(event.http_status||0),message:event.message||'',at:event.at||'',attempt:Number(event.attempt||0),
+        duration_ms:Number(event.duration_ms||0),eventKey:traceEventKey(event),stepKey:stepKey(trace.trace_id,event.sequence)})}
+    if(Number(trace.error_count||0)>0)remember({cause:trace.error_code||'trace error',component:'metatube',
+      provider:trace.selected_provider||'',stage:trace.error_code||'trace_error',status:Number(trace.error_status||0),
+      message:trace.error_message||'',at:trace.completed_at||trace.started_at||'',attempt:0,
+      duration_ms:Number(trace.duration_ms||0),eventKey:'',stepKey:''});
+    return entries}
+  function traceErrorVerdict(trace,count){const status=String(trace.status||'');
+    if(status==='failed')return{cls:'bad',icon:'✖',text:'run failed'};
+    if(status==='cancelled')return{cls:'idle',icon:'⊘',text:'run cancelled'};
+    if(!count)return{cls:'ok',icon:'✔',text:'no errors'};
+    if(status==='partial')return{cls:'warn',icon:'◐',text:'run partial · failures recorded'};
+    return{cls:'warn',icon:'⚠',text:`run ${status||'succeeded'} with provider error(s)`}}
+  function errorIndexHtml(trace,entries){const verdict=traceErrorVerdict(trace,entries.length);
+    const head=`<div class="error-index-head"><span class="badge ${verdict.cls}"><span aria-hidden="true">${verdict.icon}</span>${entries.length} error${entries.length===1?'':'s'}</span>
+      <span class="badge ${verdict.cls}">${esc(verdict.text)}</span>
+      <span class="note">level=error · stage ending in _failed · HTTP 400 or greater</span></div>`;
+    if(!entries.length)return `<div class="error-index ok" data-error-index>${head}<div class="empty note" style="padding:9px 13px">No failure recorded for this trace.</div></div>`;
+    const rows=entries.map((entry,position)=>{const where=[entry.provider||entry.component,entry.stage,entry.status?`HTTP ${entry.status}`:''].filter(Boolean).join(' · ');
+      const meta=[entry.message,entry.at?new Date(entry.at).toLocaleTimeString():'',entry.attempt?`attempt ${entry.attempt}`:'',entry.duration_ms?traceMs(entry.duration_ms):'',entry.cause].filter(Boolean).join(' · ');
+      const focus=entry.eventKey?`<button data-focus-error="${esc(entry.eventKey)}" data-focus-step="${esc(entry.stepKey)}">Focus event</button>`:'<span class="note">summary only</span>';
+      return `<div class="error-entry" data-error-entry="${position}"><span class="badge bad"><span aria-hidden="true">✖</span>error</span><span class="where">${esc(where)}</span>${focus}<span class="why">${esc(meta)}</span></div>`}).join('');
+    return `<div class="error-index" data-error-index>${head}${rows}</div>`}
+  function renderTraceDrawer(kind,trace,downstream){const events=trace.events||[],groups=timelineGroups(events),totals={},errorEntries=traceErrorEntries(trace,events);
+    runState.errors=errorEntries;
     events.forEach(event=>{const key=event.component||'metatube';totals[key]=(totals[key]||0)+Number(event.duration_ms||0)});
     const summary=Object.entries(totals).filter(entry=>entry[1]>0).map(entry=>`${entry[0]} ${traceMs(entry[1])}`).join(' · ');
     return `<div class="drawer-head"><h2>${esc(trace.operation||'trace')} · ${esc(trace.kind||kind)}</h2>${traceStatusBadge(trace.status)} ${traceDownstreamMark(downstream)}<span class="grow"></span><button data-action="copy">Copy trace ID</button><button data-action="export">Export JSON</button><button data-action="logs">Show in LOGS</button><button data-action="delete">Delete</button><button data-action="close" class="tab">Close</button></div>
+      ${errorIndexHtml(trace,errorEntries)}
       <div class="trace-meta">
         ${traceMeta('Trace ID',`<span class="mono">${esc(trace.trace_id)}</span>`)}
         ${traceMeta('Query',esc(trace.query||'—'))}
@@ -304,7 +370,7 @@
       </div>
       <div class="run-panel" data-run-panel></div>
       ${summary?`<div class="note" style="padding:12px 18px 0">Stage totals: ${esc(summary)}</div>`:''}
-      <div class="timeline">${groups.map(group=>`<section class="timeline-group"><h3><span aria-hidden="true">${group.icon}</span>${esc(group.label)}<span class="totals">${group.events.length} event(s) · ${traceMs(group.total)}</span></h3>${group.events.map(event=>`<div class="timeline-event ${event.level==='error'?'err':''}"><span class="note">${new Date(event.at).toLocaleTimeString()}</span><span class="stage">${esc(event.stage||'')}</span><span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span><span class="detail">${traceEventDetail(event)}</span></div>`).join('')}</section>`).join('')||'<div class="note">No events recorded for this trace.</div>'}</div>`}
+      <div class="timeline">${groups.map(group=>`<section class="timeline-group"><h3><span aria-hidden="true">${group.icon}</span>${esc(group.label)}<span class="totals">${group.events.length} event(s) · ${traceMs(group.total)}</span></h3>${group.events.map(event=>`<div class="timeline-event ${event.level==='error'?'err':''}" data-event-key="${esc(traceEventKey(event))}"><span class="note">${new Date(event.at).toLocaleTimeString()}</span><span class="stage">${esc(event.stage||'')}</span><span class="dur">${event.duration_ms?traceMs(event.duration_ms):''}</span><span class="detail">${traceEventDetail(event)}</span></div>`).join('')}</section>`).join('')||'<div class="note">No events recorded for this trace.</div>'}</div>`}
   async function openTrace(kind,traceId,scroll,row){const state=traceState[kind];state.open=traceId;const drawer=traceEl(kind,'Drawer');
     if(row)placeTraceDrawer(kind,row);
     // A live auto-follow refresh keeps the reader's scroll position; opening a
@@ -321,10 +387,22 @@
       drawer.querySelector('[data-action="logs"]').addEventListener('click',()=>showTraceInLogs(traceId));
       drawer.querySelector('[data-action="delete"]').addEventListener('click',()=>deleteTrace(kind,traceId));
       drawer.querySelector('[data-action="close"]').addEventListener('click',()=>closeTraceDrawer(kind));
+      // Error index focus controls: highlight the chosen entry, then jump to its
+      // event. One implementation serves both the video and actor drawers.
+      drawer.querySelectorAll('[data-focus-error]').forEach(button=>button.addEventListener('click',()=>{
+        drawer.querySelectorAll('.error-entry[data-focused]').forEach(entry=>entry.removeAttribute('data-focused'));
+        const entry=button.closest('.error-entry');if(entry)entry.dataset.focused='true';
+        focusTraceError(kind,button.dataset.focusError,button.dataset.focusStep)}));
+      runState.currentTrace=traceId;
       // The run panel groups every trace that explicitly belongs to this run so
       // the reader can expand run -> trace -> step and correlate each step.
       const key=runKeyOf(trace);
       if(runState.key&&runState.key!==key){runState.key='';runState.group=null;runState.openTraces={};runState.openSteps={};runState.logs={}}
+      // The first recorded failure opens its own run node and step once per
+      // opened trace, so a reader's collapse is not undone by the next refresh.
+      if(runState.autoExpanded!==traceId){runState.autoExpanded=traceId;
+        const failing=(runState.errors||[]).find(entry=>entry.stepKey);
+        if(failing){runState.openTraces[trace.trace_id]=true;runState.openSteps[failing.stepKey]=true}}
       loadRun(kind,trace,true);
       drawer.scrollTop=previousScroll;
       if(scroll)drawer.scrollIntoView({behavior:'smooth',block:'nearest'})
@@ -398,7 +476,7 @@
     ingestionState.probing=false;drawIngestion()}
 
   // --- expandable run -> trace -> step tree with step-scoped logs ---
-  const runState={key:'',group:null,downstream:[],awaiting:false,error:'',loading:false,openTraces:{},openSteps:{},logs:{}};
+  const runState={key:'',group:null,downstream:[],awaiting:false,error:'',loading:false,openTraces:{},openSteps:{},logs:{},errors:[],currentTrace:'',autoExpanded:''};
   const GROUPED_BY_LABEL={run_id:'run id',windmill_job_id:'Windmill job',parent_trace_id:'parent trace',trace_id:'trace id'};
   function runKeyOf(trace){return trace.run_id||trace.windmill_job_id||trace.parent_trace_id||trace.trace_id||''}
   function stepKey(traceId,sequence){return traceId+':'+sequence}

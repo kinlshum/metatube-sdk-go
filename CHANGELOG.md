@@ -5,12 +5,21 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
-- Specified a clickable error index for expanded video and actor enrichment
-  traces so an error count identifies the exact provider, stage, and event.
-- Specified real rolling five-minute provider statistics beside SETTINGS
-  throttle controls, including latency, peak concurrency, and blocking signals.
+- Added an error index to expanded video and actor enrichment traces. Every
+  failure names its provider/component, failing stage, HTTP status or internal
+  error code, message, time, attempt, and duration, and a `Focus event` control
+  opens the owning run node/step, scrolls to that event, and focuses it.
+- The first recorded failure expands its own run node and step once per opened
+  trace, so a reader's collapse is not undone by the five-second refresh. An
+  outright run failure is distinguished from a successful run that recorded
+  provider failures, and a clean trace still shows an explicit `0 errors`.
+- Still specified and pending: real rolling five-minute provider statistics
+  beside the SETTINGS throttle controls (`provider_windows.five_minutes`).
 - Specified lookup-driven provider health, fallback/degradation semantics,
   observation provenance, and bounded startup/manual health checks.
+- Added a mandatory fresh-clone/synchronize workflow and separate immutable
+  release and deployment records to prevent stale builds from replacing newer
+  code.
 - Added a mandatory fresh-clone/synchronize workflow and separate immutable
   release and deployment records to prevent stale builds from replacing newer
   code.

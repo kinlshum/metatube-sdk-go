@@ -7,6 +7,27 @@ expanded enrichment run, showing genuine rolling five-minute provider
 statistics beside each throttle setting, and allowing real provider traffic to
 refresh provider health immediately.
 
+## Status (updated 2026-09-19, branch `codex/mdcng-fc2cmadb-providers`)
+
+- **A. Error identification inside expanded traces — implemented.** The selected
+  trace renders a `data-error-index` block between its header and the
+  run/timeline details. It treats an event as an error when `level=error`, the
+  stage ends in `_failed`, or the HTTP status is 400 or greater (a slow duration
+  alone is never an error), deduplicates a failure reported by both the
+  trace-level summary and the timeline, expands the first failing run node/step
+  once per opened trace, and gives every entry a `Focus event` control that
+  re-opens the owning group, scrolls to the exact event (`data-event-key`), and
+  focuses it. A failed run is labelled differently from a successful run with
+  provider failures, and a clean trace still shows an explicit `0 errors`.
+  Coverage: `route/admin_ui_test.go:TestAdminPageErrorIndexControls`. The video
+  and actor tabs share this drawer code.
+- **B. Rolling `LAST 5 MIN` statistics on SETTINGS — pending.** The design,
+  backend contract (`provider_windows.five_minutes`), UI, and test requirements
+  in section B below are unchanged.
+- **C. Workflow — in force.** This work started from a fresh clone
+  (`../metatube-admin-next-f261f67`) synchronized to `f261f671…`, and every
+  release updates the changelog, release log, and deployment log.
+
 ## A. Error identification inside expanded enrichment traces
 
 Add an error summary directly below the selected trace header and above its

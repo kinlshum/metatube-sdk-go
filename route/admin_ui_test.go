@@ -295,3 +295,69 @@ func TestTraceDownstreamStatesThroughTheAPI(t *testing.T) {
 		assert.Equal(t, wantStatus, downstream["status"], traceID)
 	}
 }
+
+// TestAdminPageErrorIndexControls guards the expanded-trace error index: the
+// error count must name the exact provider, failing stage, and event, and its
+// focus control must scroll to that event for both the video and actor tabs.
+func TestAdminPageErrorIndexControls(t *testing.T) {
+	router, _ := newTraceTestRouter(t, nil)
+
+	recorder := doRequest(router, http.MethodGet, "/admin", nil, nil)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	body := recorder.Body.String()
+
+	// The summary renders inside the drawer, above the run panel and timeline.
+	assert.Contains(t, body, "data-error-index", "the drawer needs an error summary block")
+	assert.Contains(t, body, "${errorIndexHtml(trace,errorEntries)}",
+		"the error index must sit between the trace header and the run/timeline details")
+	assert.Contains(t, body, "runState.errors=errorEntries",
+		"the entries must be kept for the focus and auto-expand behaviour")
+
+	// Classification: level=error, a stage ending in _failed, or HTTP >= 400.
+	// A slow duration must never be promoted to an error on its own.
+	for _, rule := range []string{
+		"if(event.level==='error')return 'level=error';",
+		"if(/_failed$/.test(stage))return 'stage ends in _failed';",
+		"if(status>=400)return `HTTP ${status}`;",
+	} {
+		assert.Contains(t, body, rule, "error classification rule missing: %s", rule)
+	}
+	assert.NotContains(t, body, "duration_ms>=4000", "a slow duration must not be treated as an error")
+
+	// Every entry identifies provider/component, stage, status, and event facts.
+	for _, field := range []string{
+		"entry.provider||entry.component", "entry.stage", "`HTTP ${entry.status}`",
+		"entry.attempt", "entry.duration_ms", "entry.message",
+	} {
+		assert.Contains(t, body, field, "an error entry must include %s", field)
+	}
+
+	// The same failure reported by both the summary and the timeline is listed once.
+	assert.Contains(t, body, "if(seen.has(key))return;seen.add(key);entries.push(entry)};")
+
+	// Focus control: open the owning group, scroll to the event, and focus it.
+	assert.Contains(t, body, `data-focus-error="${esc(entry.eventKey)}"`)
+	assert.Contains(t, body, `data-focus-step="${esc(entry.stepKey)}"`)
+	assert.Contains(t, body, `data-event-key="${esc(traceEventKey(event))}"`,
+		"timeline events need a stable focus target")
+	assert.Contains(t, body, "function focusTraceError(kind,eventKey,stepKey)")
+	assert.Contains(t, body, "runState.openSteps[stepKey]=true;renderRunPanel(kind);restoreOpenSteps(kind)")
+	assert.Contains(t, body, "target.scrollIntoView({behavior:'smooth',block:'center'});target.focus()")
+
+	// The group holding the first failure opens automatically, once per trace, so
+	// a reader's manual collapse is not undone by the five-second refresh.
+	assert.Contains(t, body, "if(runState.autoExpanded!==traceId){runState.autoExpanded=traceId;")
+	assert.Contains(t, body, "runState.openTraces[trace.trace_id]=true;runState.openSteps[failing.stepKey]=true")
+
+	// A failed run and a successful run with provider errors must read differently.
+	assert.Contains(t, body, "text:'run failed'")
+	assert.Contains(t, body, "text:`run ${status||'succeeded'} with provider error(s)`")
+	assert.Contains(t, body, "text:'run partial · failures recorded'")
+	assert.Contains(t, body, "text:'no errors'")
+	assert.Contains(t, body, "No failure recorded for this trace.",
+		"a zero-error run still shows a clean, explicit index")
+
+	// Both tabs share this implementation: the wiring lives in the common drawer.
+	assert.Contains(t, body, "drawer.querySelectorAll('[data-focus-error]').forEach(button=>button.addEventListener('click'",
+		"the focus control must be wired for the shared video/actor drawer")
+}

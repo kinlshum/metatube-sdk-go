@@ -31,6 +31,19 @@ before editing and again before committing, then update `CHANGELOG.md`,
 `docs/RELEASE_LOG.md`, and `docs/DEPLOYMENT_LOG.md`. Push before deployment and
 record immutable commit, image, page-hash, verification, and rollback details.
 
+## Admin next-work status (2026-09-19)
+
+Part A of
+[`docs/METATUBE_ADMIN_NEXT_TODO.md`](docs/METATUBE_ADMIN_NEXT_TODO.md) (the
+expanded-trace error index with a focus control to the exact failing event) is
+implemented in `route/admin.html` and guarded by
+`route/admin_ui_test.go:TestAdminPageErrorIndexControls`. Part B (genuine
+rolling five-minute provider statistics beside the SETTINGS throttle controls)
+is the next deliverable. The delivery process above is in force: the work
+started from a fresh clone, `HEAD` was verified against
+`origin/codex/mdcng-fc2cmadb-providers` at `f261f671…`, and only pushed commits
+may be deployed.
+
 ## Repository and branch
 
 - GitHub: `https://github.com/kinlshum/metatube-sdk-go`
