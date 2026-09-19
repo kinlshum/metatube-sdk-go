@@ -307,14 +307,19 @@ authoritative workflow/run timeline; Graylog is the durable cross-service
 diagnostic record used to explain what every participating service did during
 that run.
 
-The existing Graylog deployment is on `192.168.10.153` and already provides:
+Log destinations are split by traffic type. **Application** logs use Graylog1 on
+Unraid `.150`, LXC hostname `graylog1`, service IP `192.168.10.155`. **System
+(syslog)** logs use Graylog2 on Kraken `.170`, LXC hostname `graylog2`, service
+IP `192.168.10.153`. Application logs must never be sent to Graylog2, and syslog
+must never be sent to Graylog1; Graylog2 also hosts controlled Graylog/OS upgrade
+testing. Graylog1 provides:
 
 - Graylog web/API service on port `9000`, published externally as
-  `https://graylog.madtechinc.com`;
+  `https://graylog1.madtechinc.com`;
 - authenticated application GELF HTTP input at
-  `http://192.168.10.153:12201/gelf`;
+  `http://192.168.10.155:12201/gelf`;
 - authenticated Vector/container GELF HTTP input at
-  `http://192.168.10.153:12202/gelf` (4 MiB maximum message/frame size);
+  `http://192.168.10.155:12202/gelf` (4 MiB maximum message/frame size);
 - ingestion authentication using the `X-Graylog-Token` request header; and
 - Graylog administrative/API access using a dedicated administrator account
   with HTTP Basic authentication. The root-only bootstrap credential file is
@@ -336,7 +341,8 @@ Server and service integration points:
 
 | Origin | Known endpoint/location | Graylog integration requirement |
 | --- | --- | --- |
-| Graylog LXC | `192.168.10.153:9000`, GELF `12201/12202` | Central durable log store, restricted streams/index sets, retention, search API, and safe UI deep links. |
+| Graylog1 (applications) | Unraid `.150`; hostname `graylog1`; `192.168.10.155:9000`; GELF `12201/12202/12203`; `https://graylog1.madtechinc.com` | Production durable store for **application** logs (MetaTube, provider bridge, FlareSolverr, Windmill, Emby and container stdout), restricted streams/index sets, retention, search API, and safe UI deep links. |
+| Graylog2 (syslog) | Kraken `.170`; hostname `graylog2`; `192.168.10.153:9000`; `https://graylog2.madtechinc.com` | Durable store for **system/syslog** traffic and controlled Graylog/OS upgrade testing; never an application-log target. |
 | MetaTube server | `192.168.10.166:8080` | Emit structured application/provider events to authenticated GELF HTTP; search Graylog only from the server-side adapter. Include trace/run/client/provider/timing fields. |
 | Provider bridge | Configured bridge endpoint (currently consumed as `192.168.10.170:9210`) | Propagate `trace_id`/`run_id`; log provider selection, request duration, throttle wait, retry, HTTP status, and sanitized failure. Never log provider cookies or authorization data. |
 | FlareSolverr | Deployment endpoint discovered from runtime configuration | Emit or collect startup, Chrome/session, challenge, timeout, retry, and terminal errors. Correlate with provider and trace IDs supplied by the caller. Do not store challenge cookies. |
@@ -816,11 +822,31 @@ commands):
    restart; the native buffer is labelled `Recent logs; cleared on restart`, and
    `traces.db` keeps the authoritative timeline.
 
-Deployed on Kraken against Graylog 7.1.8 (`192.168.10.153`, API
-`https://graylog.madtechinc.com`, GELF HTTP `12203` dedicated MetaTube input;
+Deployed on Kraken against production Graylog1 (`192.168.10.155`, API
+`https://graylog1.madtechinc.com`, GELF HTTP `12203` dedicated MetaTube input;
 the shared application input on `12201` and the Vector/container input on
 `12202` are untouched). The search credential uses the dedicated
 `metatube-search` account with the `MetaTube Search Reader` role (search
 permissions only; a write attempt returns HTTP 403).
+
+Verified live on 2026-09-19 after Graylog1 was upgraded to 7.1.9:
+
+- Both instances report the MetaTube input `RUNNING`, each bound to its own
+  address (Graylog1 `.155`, Graylog2 `.153`); a shared input copied between nodes
+  needs its `bind_address` corrected, otherwise it logs
+  `misfired: bind(..) failed with error(-99)`.
+- MetaTube mirrors trace records to Graylog1's dedicated `12203` input and reads
+  them back through the adapter; stored records carry `application`, `service`,
+  `server`, `node`, `environment`, `source_type`, `logger` plus
+  `trace_id`/`run_id`, `component`, `stage`, `provider` and `log_level`.
+- Ingestion is asynchronous: a run-scoped search issued seconds after a lookup can
+  still return no lines while the same query a minute later returns the mirrored
+  steps, so the step panel's *Refresh logs* / auto-follow is the right control for
+  fresh runs.
+- The GELF input rejects a message with an empty mandatory `short_message` **after**
+  answering `HTTP 202`, so such a record never appears in Graylog. MetaTube always
+  sends a non-empty `short_message`; every other Kraken sender (provider bridge,
+  Windmill, Vector) must do the same.
+
 
 report their stages, the UI must say downstream status is unavailable.

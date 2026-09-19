@@ -25,7 +25,7 @@ const (
 	// EnabledEnv turns the sender on.
 	EnabledEnv = "METATUBE_GELF_ENABLED"
 	// URLEnv is the GELF HTTP input, e.g. the deployment default
-	// `http://192.168.10.153:12201/gelf`. A missing path defaults to `/gelf`.
+	// `http://192.168.10.155:12203/gelf`. A missing path defaults to `/gelf`.
 	URLEnv = "METATUBE_GELF_URL"
 	// TokenEnv is the ingestion token, sent as the `X-Graylog-Token` header. It
 	// is never logged, returned, exported, or placed in a URL.

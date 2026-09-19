@@ -1,0 +1,34 @@
+# Merge this source and transform into the host Vector configuration. The sink
+# remains host-owned because its Graylog token is a secret.
+sources:
+  metatube_stack:
+    type: docker_logs
+    include_containers:
+      - metatube
+      - metatube-provider-bridge
+      - metatube-flaresolverr
+      - metatube-postgres
+
+transforms:
+  metatube_stack_graylog_fields:
+    type: remap
+    inputs: [metatube_stack]
+    source: |
+      del(.container_created_at)
+      del(.container_id)
+      del(.image)
+      del(.label)
+      .host = "kraken"
+      .application = "metatube"
+      .service = .container_name
+      .container = .container_name
+      .environment = "homelab"
+      message = string!(.message)
+      # FlareSolverr logs request bodies. Remove challenge/session cookies before
+      # the event reaches the host's authenticated Graylog sink.
+      message = replace(message, r'cookies.: \[.*\], .maxTimeout', "cookies: '[REDACTED]', maxTimeout")
+      .message = message
+
+# The host-owned sink consumes `metatube_stack_graylog_fields` and sends GELF
+# HTTP to production Graylog1 at http://192.168.10.155:12202/gelf. Keep the
+# X-Graylog-Token value in a protected host configuration, never in this repo.

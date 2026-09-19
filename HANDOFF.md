@@ -282,6 +282,7 @@ end-to-end debugger.
 - `98000bb` — native rolling logs and related admin work.
 
 Review the complete branch history for earlier provider, health, statistics,
+FlareSolverr, and admin changes.
 
 ## Graylog integration session (2026-09-19)
 
@@ -304,7 +305,8 @@ Implemented, tested and deployed on Kraken (branch commits `a2e696b`, `6e047c5`,
 - Endpoints: `GET /admin/api/gelf`, `POST /admin/api/gelf/probe`,
   `GET /admin/api/logs/search`, `GET /admin/api/trace-runs/:runID`, ingestion
   block in `GET /admin/api/trace-stats`.
-- Deployment: dedicated MetaTube GELF HTTP input on `192.168.10.153:12203` with
+- Deployment: dedicated MetaTube GELF HTTP input on Graylog1
+  (`192.168.10.155:12203`) with
   its own rotatable token (shared `12201`/`12202` inputs untouched), search
   credential `metatube-search` with the `MetaTube Search Reader` role
   (`searches:*`, `streams:read`, `messages:read/analyze`; writes return 403).
@@ -317,15 +319,23 @@ environment=homelab source_type=trace` and the correct `trace_id`/`run_id`, and
 retrievable through the adapter's query shape. Sender counters show deliveries
 and zero failures/drops; the token only travels in the `X-Graylog-Token` header.
 
-Outstanding Graylog-side issue (not a MetaTube defect): the Graylog LXC stopped
-storing messages at `2026-09-19T15:19:44Z` (Emby-sourced logs stopped earlier, at
-~`09:19Z`) while its inputs keep accepting (`HTTP 202`, input counter
-`incomingMessages` = 13), the process buffer usage is 0, the journal has no
-unread segments and Graylog reports zero indexing failures. Cluster health is
-green, the deflector targets `graylog_2`, and the LXC filesystem is at 93% (above
-OpenSearch's default 90% high disk watermark). Until that instance is fixed
-(free space and/or raise the datanode watermarks, then restart `graylog-server`),
-new records stay invisible in the `GRAYLOG` section; the sender keeps delivering
-in the meantime and no MetaTube change is required afterwards.
+Live state after the Graylog-side fix (verified 2026-09-19, Graylog1 on 7.1.9):
+both instances report the MetaTube input `RUNNING`, each bound to its own address
+(Graylog1 `192.168.10.155`, Graylog2 `192.168.10.153`), and mirrored records are
+stored and searchable again — `trace started`, step records
+(`provider_completed`, `cache_lookup`, `fallback_started`, `result_selected`),
+failures such as `provider bridge returned 404 Not Found`, `trace finished:
+status=succeeded|failed`, and probe records, all carrying the required common
+fields and `trace_id`/`run_id`. Gateway split: `.155` (Graylog1) stores
+application logs, `.153` (Graylog2) stores syslog.
 
-FlareSolverr, and admin changes.
+Two operational notes:
+- Ingestion is asynchronous. A run-scoped search issued seconds after a lookup can
+  still return no lines; the same query a minute later returns the mirrored steps,
+  which is what the step panel's *Refresh logs* / auto-follow is for.
+- The GELF input rejects a message whose mandatory `short_message` is empty **after**
+  answering `HTTP 202`, so that record silently never appears. MetaTube always sends
+  a non-empty `short_message`; a Kraken-originated payload without one was rejected
+  at `18:08:42Z` (most likely the provider bridge, Windmill or Vector), so those
+  senders should be checked. The earlier `misfired: bind(..) failed` errors were the
+  shared input pointing at the other node's address, now fixed.

@@ -12,7 +12,7 @@ const (
 	// GraylogEnabledEnv turns the adapter on.
 	GraylogEnabledEnv = "METATUBE_GRAYLOG_ENABLED"
 	// GraylogAPIURLEnv is the Graylog server API base, e.g.
-	// `https://graylog.madtechinc.com/api` (the deployment default).
+	// `https://graylog1.madtechinc.com/api` (the deployment default).
 	GraylogAPIURLEnv = "METATUBE_GRAYLOG_API_URL"
 	// GraylogStreamIDEnv restricts every query to one stream.
 	GraylogStreamIDEnv = "METATUBE_GRAYLOG_STREAM_ID"

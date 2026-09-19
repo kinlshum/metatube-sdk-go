@@ -57,6 +57,12 @@ structured enrichment traces described in
 
 ## Graylog integration (durable cross-service diagnostics)
 
+Log traffic is split by type: **application** logs go to Graylog1
+(`192.168.10.155`, `https://graylog1.madtechinc.com`) and **system/syslog** logs
+go to Graylog2 (`192.168.10.153`, `https://graylog2.madtechinc.com`). MetaTube
+only ever writes to the application instance; never point
+`METATUBE_GELF_URL`/`METATUBE_GRAYLOG_API_URL` at the syslog instance.
+
 `traces.db` stays the authoritative workflow timeline. Graylog stores the same
 records durably, next to container, provider, FlareSolverr, Windmill and
 reverse-proxy logs, so one run can be followed across services and across
@@ -91,18 +97,18 @@ curl -u admin:<password> -H 'X-Requested-By: provision' -H 'Content-Type: applic
   -d '{"name":"MetaTube Search Reader","description":"Read-only search for the MetaTube admin",
        "permissions":["searches:absolute","searches:relative","searches:keyword",
                       "streams:read","messages:read","messages:analyze"]}' \
-  http://192.168.10.153:9000/api/roles
+  http://192.168.10.155:9000/api/roles
 
 # 2. create the service account (first_name/last_name are required in Graylog 7)
 curl -u admin:<password> -H 'X-Requested-By: provision' -H 'Content-Type: application/json' \
   -d '{"username":"metatube-search","password":"<random>","email":"metatube@localhost",
        "first_name":"MetaTube","last_name":"Search","permissions":[],"roles":["MetaTube Search Reader"],
        "timezone":"UTC"}' \
-  http://192.168.10.153:9000/api/users
+  http://192.168.10.155:9000/api/users
 
 # 3. create an API token for that user (tokens are keyed by the 24-character user id)
 curl -u admin:<password> -H 'X-Requested-By: provision' -X POST \
-  "http://192.168.10.153:9000/api/users/<user-id>/tokens/metatube-$(date +%Y%m%d)"
+  "http://192.168.10.155:9000/api/users/<user-id>/tokens/metatube-$(date +%Y%m%d)"
 ```
 
 The composition file already sets the non-secret defaults:
@@ -123,6 +129,20 @@ The composition file already sets the non-secret defaults:
 
 Health and reachability (both endpoints never return a token):
 
+### Whole-stack container logs
+
+The structured MetaTube trace sender uses the dedicated Graylog1 input on
+`192.168.10.155:12203`. Docker stdout/stderr for the complete stack is collected
+by the Kraken Vector service and sent to Graylog1's container input on `12202`.
+The collector must include all four containers: `metatube`,
+`metatube-provider-bridge`, `metatube-flaresolverr`, and `metatube-postgres`.
+
+Use [`vector-metatube.example.yaml`](vector-metatube.example.yaml) as the
+checked-in source/transform contract. The host configuration owns the sink and
+its ingestion token. The transform also removes FlareSolverr request-cookie
+arrays before delivery; challenge/session cookies must never be stored in
+Graylog.
+
 ```sh
 curl -sS -H "X-MetaTube-Admin-Token: $METATUBE_ADMIN_TOKEN" \
   http://192.168.10.166:8080/admin/api/gelf          # status card + counters
@@ -140,3 +160,14 @@ docker logs metatube 2>&1 | grep '\[GELF\]'
 curl -u "<api-token>:token" -H 'X-Requested-By: metatube' \
   'https://graylog1.madtechinc.com/api/search/universal/absolute?query=run_id:"run-example"&from=2026-09-19T00:00:00.000Z&to=2026-09-20T00:00:00.000Z&limit=10&streams=000000000000000000000001&fields=timestamp,message,trace_id,run_id'
 ```
+
+Two things to know when reading the `GRAYLOG` section:
+
+1. Ingestion is asynchronous. A search issued seconds after a lookup can still
+   return no lines for that run; the same query a minute later returns the
+   mirrored steps, so use the step panel's *Refresh logs* / auto-follow for fresh
+   runs.
+2. The GELF input answers `HTTP 202` and only then validates the payload, so a
+   message that breaks the GELF contract (most often an empty mandatory
+   `short_message`) is dropped silently and never appears in Graylog. MetaTube
+   always sends a non-empty `short_message`; every other sender must do the same.
