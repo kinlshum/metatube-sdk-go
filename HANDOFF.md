@@ -25,6 +25,32 @@ recent documentation commit.
 Do not commit credentials, API keys, cookies, tokens, or host-specific secret
 environment files.
 
+## Exposure and authentication
+
+`https://metatube-admin.madtechinc.com/admin` resolves to a public address
+behind an OpenResty reverse proxy and was verified (2026-09-19) to serve the
+admin with **no authentication**: `/admin`, `/admin/api/stats`,
+`/admin/api/logs`, `/admin/api/provider-throttles` (the `PUT` on the same path is
+equally open), `/v1/db/version`, and `/v1/providers` all answered anonymously.
+The served admin page is byte-identical to this branch. `METATUBE_TOKEN` is
+unset there, so `/v1` is open as well.
+
+Application-level controls added on this branch:
+
+- `METATUBE_ADMIN_TOKEN`: when set, every `/admin` route (page, stats, logs,
+  throttles, and all trace APIs) requires the token via
+  `X-MetaTube-Admin-Token`, `Authorization: Bearer`, or `?token=` (which plants
+  an HttpOnly cookie for the single-page UI). Off by default.
+- `METATUBE_TRUSTED_PROXIES`: forwarded headers are now ignored unless a proxy
+  is explicitly trusted, so a caller can no longer spoof its own address in
+  statistics, logs, or traces. Behind the public proxy, set this to the proxy
+  address (for example `192.168.10.1`) or remote clients all appear as the proxy
+  IP.
+
+Still required outside this repository: protect the public hostname at the proxy
+(identity-aware proxy, basic auth, VPN, or IP allowlist), and consider setting
+`METATUBE_TOKEN` for the `/v1` API.
+
 ## Completed on this branch
 
 - MetaTube Admin page at `/admin`.

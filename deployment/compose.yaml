@@ -59,6 +59,14 @@ services:
       GIN_MODE: release
       PORT: 8080
       TOKEN: ${METATUBE_TOKEN:-}
+      # Admin token: set METATUBE_ADMIN_TOKEN on the host to require a token for
+      # every /admin route (page, stats, logs, throttles, traces). Empty means
+      # the admin stays unauthenticated, which is only safe on a trusted LAN.
+      METATUBE_ADMIN_TOKEN: ${METATUBE_ADMIN_TOKEN:-}
+      # Proxy CIDRs whose X-Forwarded-For may be trusted for client attribution.
+      # Empty means client IPs always come from the connection, so callers cannot
+      # spoof their address in statistics or traces.
+      METATUBE_TRUSTED_PROXIES: ${METATUBE_TRUSTED_PROXIES:-}
       DSN: postgres://metatube:metatube@postgres:5432/metatube?sslmode=disable
       DB_AUTO_MIGRATE: "1"
       DB_PREPARED_STMT: "1"

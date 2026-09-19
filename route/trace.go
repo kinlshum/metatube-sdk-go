@@ -65,20 +65,29 @@ func classifyTraceRequest(c *gin.Context) (traceRequest, bool) {
 		return traceRequest{}, false
 	}
 
-	// /v1/<group>/<provider>/<id>, /v1/<group>/search, or /v1/images/<type>/<provider>/<id>
+	// /v1/<group>/<provider>/<id>, /v1/<group>/search, or
+	// /v1/images/<type>/<provider>/<id>
 	last := segments[len(segments)-1]
-	if last == "search" {
+	switch {
+	case last == "search":
 		request.provider = c.Query("provider")
 		request.query = c.Query("q")
-	} else {
+	case request.images && len(segments) >= 4:
+		request.provider = segments[3]
+		request.id = last
+	default:
 		request.provider = segments[2]
 		request.id = last
-		request.query = c.Query("q")
 	}
 
 	request.operation = trace.OperationLookup
 	if request.images {
 		request.operation = trace.OperationEnrich
+	}
+	// An id-based lookup has no free-text query, so the catalog code becomes the
+	// query. That keeps trace lists and text filters meaningful.
+	if request.query == "" {
+		request.query = request.id
 	}
 	return request, true
 }

@@ -193,10 +193,17 @@ Use existing admin/API authentication, validate payload size, rate-limit per
 client, and accept an idempotency key for retried events.
 
 Payload size is enforced with `http.MaxBytesReader`, ingest is rate-limited per
-client, and idempotency keys are honoured. **Admin authentication still does not
-exist**: `/admin/*` routes carry no auth middleware today, so the trace APIs
-inherit that gap. Add authentication before this feature is exposed beyond the
-LAN.
+client, and idempotency keys are honoured.
+
+Admin authentication now exists: setting `METATUBE_ADMIN_TOKEN` requires a token
+(`X-MetaTube-Admin-Token`, `Authorization: Bearer`, or `?token=` which plants an
+HttpOnly cookie) on every `/admin` route, including all trace APIs. **It is off
+by default**, and the public hostname
+`https://metatube-admin.madtechinc.com/admin` was verified to be reachable from
+the internet with no authentication, exposing statistics, logs, provider
+throttles (writable via `PUT`), the provider list, and the database version
+(`METATUBE_TOKEN` is also unset there). Protect that hostname at the proxy as
+well: an identity-aware proxy, basic auth, or an IP allowlist.
 
 - [x] `POST /admin/api/traces/start`
 - [x] `POST /admin/api/traces/:traceID/events`

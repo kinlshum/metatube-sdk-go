@@ -74,10 +74,10 @@ func (l *ingestLimiter) allow(key string) bool {
 	return true
 }
 
-// registerTraceRoutes wires the enrichment trace admin APIs.
-func registerTraceRoutes(r *gin.Engine, service *trace.Service) {
+// registerTraceRoutes wires the enrichment trace admin APIs under /admin.
+func registerTraceRoutes(admin *gin.RouterGroup, service *trace.Service) {
 	limiter := newIngestLimiter(trace.DefaultIngestBurstPerClient, trace.DefaultIngestRefillPerSecond)
-	group := r.Group("/admin/api/traces")
+	group := admin.Group("/api/traces")
 	{
 		group.POST("/start", ingestionGuard(limiter), postTraceStart(service))
 		group.POST("/:traceID/events", ingestionGuard(limiter), postTraceEvents(service))
@@ -88,7 +88,7 @@ func registerTraceRoutes(r *gin.Engine, service *trace.Service) {
 		group.DELETE("/:traceID", deleteTrace(service))
 		group.POST("/purge-expired", ingestionGuard(limiter), postTracePurge(service))
 	}
-	r.GET("/admin/api/trace-stats", getTraceStats(service))
+	admin.GET("/api/trace-stats", getTraceStats(service))
 }
 
 // ingestionGuard applies body limits and rate limiting to ingest endpoints.

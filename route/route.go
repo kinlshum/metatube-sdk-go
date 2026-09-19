@@ -21,6 +21,12 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	app.StartProviderHealthChecks()
 	r := gin.New()
 	{
+		// Client IPs are only derived from X-Forwarded-For when the operator
+		// explicitly trusts a proxy, so a caller cannot spoof its own address in
+		// metrics or traces.
+		if err := r.SetTrustedProxies(trustedProxies()); err != nil {
+			_ = r.SetTrustedProxies(nil)
+		}
 		// support CORS
 		r.Use(cors.Default())
 		// register middleware
@@ -38,12 +44,16 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 
 	// index page
 	r.GET("/", getIndex(app))
-	r.GET("/admin", getAdminPage())
-	r.GET("/admin/api/provider-throttles", getProviderThrottles(app))
-	r.PUT("/admin/api/provider-throttles", putProviderThrottles(app))
-	r.GET("/admin/api/stats", getAdminStats(app))
-	r.GET("/admin/api/logs", getAdminLogs())
-	registerTraceRoutes(r, app.TraceService())
+
+	// admin page and APIs. When METATUBE_ADMIN_TOKEN is set every /admin route
+	// requires that token, including the trace ingest APIs.
+	admin := r.Group("/admin", adminAuth(adminToken()))
+	admin.GET("", getAdminPage())
+	admin.GET("/api/provider-throttles", getProviderThrottles(app))
+	admin.PUT("/api/provider-throttles", putProviderThrottles(app))
+	admin.GET("/api/stats", getAdminStats(app))
+	admin.GET("/api/logs", getAdminLogs())
+	registerTraceRoutes(admin, app.TraceService())
 
 	system := r.Group("/v1", cacheNoStore())
 	{
