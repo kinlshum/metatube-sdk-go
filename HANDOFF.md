@@ -248,6 +248,16 @@ structured SQLite events are therefore the timeline source of truth. Native
 logs are recent supporting evidence and must be labeled as ephemeral. The spec
 documents a future optional Graylog adapter without making Graylog mandatory.
 
+The requested job/run detail view must show all three sources together but
+clearly labeled: `TRACE TIMELINE` from `traces.db`, `RECENT NATIVE LOGS` from
+the ephemeral in-process buffer, and `GRAYLOG LOGS` from the optional durable
+backend. Every run, trace, and step needs both `View correlated logs` and `Open
+in Graylog`, plus `Back to trace` with UI state restoration. Graylog failure or
+absence must never block the trace timeline. Do not copy Graylog messages into
+SQLite; correlate by trace/run/job IDs and time ranges. The full adapter,
+configuration, deep-link, deduplication, security, and test requirements are in
+the spec section titled **Required combined run-log experience**.
+
 Do not group work using fuzzy actor/time similarity, expose admin or Windmill
 credentials in links, or let expand/collapse/log actions mutate trace records.
 Implement and verify this before declaring the trace UI an operational

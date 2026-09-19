@@ -294,6 +294,100 @@ interface. If implemented, send structured GELF from stdout with `trace_id`,
 Graylog server-side using credentials stored only in environment/secrets. The
 Admin UI must work without Graylog and must never receive Graylog credentials.
 
+#### Required combined run-log experience
+
+The expanded job/run view must expose all available evidence in one place while
+keeping the sources distinct:
+
+1. **Trace Timeline** — durable structured events from `traces.db`; this is the
+   authoritative workflow record and is always shown first.
+2. **Recent Native Logs** — correlated lines from the in-process MetaTube log
+   buffer, explicitly labeled as short-lived and cleared on restart.
+3. **Graylog Logs** — durable cross-service operational logs returned by the
+   optional server-side Graylog adapter.
+
+Use sub-tabs or clearly separated sections named exactly `TRACE TIMELINE`,
+`RECENT NATIVE LOGS`, and `GRAYLOG LOGS`. Show a source badge (`TRACE`,
+`NATIVE`, or `GRAYLOG`) on every result. Do not merge them into an unlabeled
+stream that makes structured trace events look like raw log messages.
+
+Every job/run, trace, and expandable step must provide:
+
+- `View correlated logs` — opens the combined panel with the relevant IDs and
+  time range already applied;
+- `Open in Graylog` — opens Graylog's search UI using a server-generated safe
+  deep link for the same correlation and time filters;
+- `Back to trace` — restores the originating Video/Actor tab, filters,
+  expansions, open step, and scroll position;
+- Copy actions for trace ID, run ID, and Windmill job ID when present.
+
+For a step, default to `trace_id` plus the event's time window. For a complete
+run, query all explicit member trace IDs plus `run_id` and
+`windmill_job_id` when available. The shared filter bar should control time
+range, source, component, level, provider, and free text. Changing the time
+range must update both Native and Graylog queries consistently.
+
+Do not duplicate Graylog messages into `traces.db`. Correlate the systems using
+the IDs and timestamps. If a native and Graylog result represent the same
+message, collapse the duplicate visually using a stable fingerprint of source,
+timestamp bucket, level, component, trace ID, and normalized message; retain a
+way to reveal both originals. Never deduplicate structured trace events against
+raw logs because they have different purposes.
+
+Graylog is optional and failures must degrade cleanly:
+
+- When unconfigured, show `Graylog not configured` and keep Trace/Native fully
+  usable.
+- When unreachable or unauthorized, show the error and last successful query
+  time without failing the run detail request.
+- A Graylog timeout must have a short server-side deadline and must not delay
+  loading the trace timeline.
+- Never infer that a workflow step failed because Graylog returned no matches.
+
+Suggested server configuration (names may be adjusted consistently):
+
+```text
+METATUBE_GRAYLOG_ENABLED=false
+METATUBE_GRAYLOG_API_URL=https://graylog.example/api
+METATUBE_GRAYLOG_STREAM_ID=
+METATUBE_GRAYLOG_TOKEN=<secret, server-side only>
+METATUBE_GRAYLOG_EXTERNAL_URL=https://graylog.example
+METATUBE_GRAYLOG_TIMEOUT_SECONDS=5
+```
+
+Add a server-side adapter interface such as `LogSearchBackend` so Native and
+Graylog searches return a common safe result model without coupling the trace
+routes to Graylog. The Graylog implementation must:
+
+- use the Graylog search API, never scrape Graylog HTML;
+- restrict queries to configured streams/index sets;
+- escape correlation IDs and user search text using Graylog query syntax;
+- enforce server-side result and time-range limits;
+- redact sensitive fields before returning JSON;
+- generate external deep links from the configured external base URL, not from
+  request-supplied hosts;
+- keep API tokens in environment/secrets and out of HTML, JSON, logs, exports,
+  errors, and URLs.
+
+Emit these structured correlation fields to Graylog where available:
+`trace_id`, `run_id`, `parent_trace_id`, `windmill_job_id`, `emby_item_id`,
+`client`, `component`, `stage`, `provider`, `attempt`, `level`, `duration_ms`,
+and `http_status`. Preserve the human-readable message separately.
+
+Additional acceptance tests:
+
+- Combined view loads Trace immediately while Native and Graylog load
+  independently.
+- Run-, trace-, and step-scoped searches produce matching filters and time
+  windows across both log backends.
+- Graylog disabled, timeout, HTTP error, and empty-result cases do not break the
+  trace timeline.
+- Deep links contain the intended IDs/time range but no credentials.
+- Duplicate Native/Graylog messages collapse while structured trace events are
+  never suppressed.
+- A security test confirms secrets and restricted Graylog fields cannot appear
+  in responses, exports, copied URLs, or browser-visible configuration.
+
 Support these scopes:
 
 - **Run logs:** native log lines for every trace in the grouped run.
