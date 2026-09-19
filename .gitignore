@@ -26,3 +26,8 @@ go.work.sum
 
 # Build files
 build/
+
+# Detector test debug output (saveImage writes <hash>.jpg next to the package)
+detector/*.jpg
+detector/*.jpeg
+detector/*.png
