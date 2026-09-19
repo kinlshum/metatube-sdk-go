@@ -2,12 +2,15 @@
 
 ## Current custom release
 
-`custom-2026.09.19.1` fixes the enrichment debugger interaction: selecting a
-video or actor job now expands the complete run → trace → step viewer directly
-beneath that table row. Step panels continue to correlate structured trace,
-native MetaTube, and Graylog records. See `CHANGELOG.md`,
-`docs/RELEASE_LOG.md`, and `docs/DEPLOYMENT_LOG.md`; update the immutable
-release and deployment records for every shipped build.
+`custom-2026.09.19.2` adds an error index to every expanded video or actor
+enrichment job: each failure names its provider/component, failing stage, HTTP
+status or error code, message, time, attempt, and duration, and `Focus event`
+opens the owning run node/step and scrolls to that exact event. It also fixes a
+`TypeError` in `stepWindow()` that had aborted the whole run → trace → step
+tree, and stops the trace-level error summary from duplicating timeline
+failures. See `CHANGELOG.md`, `docs/RELEASE_LOG.md`, and
+`docs/DEPLOYMENT_LOG.md`; update the immutable release and deployment records
+for every shipped build.
 
 Updated: 2026-09-19
 
@@ -36,13 +39,31 @@ record immutable commit, image, page-hash, verification, and rollback details.
 Part A of
 [`docs/METATUBE_ADMIN_NEXT_TODO.md`](docs/METATUBE_ADMIN_NEXT_TODO.md) (the
 expanded-trace error index with a focus control to the exact failing event) is
-implemented in `route/admin.html` and guarded by
-`route/admin_ui_test.go:TestAdminPageErrorIndexControls`. Part B (genuine
-rolling five-minute provider statistics beside the SETTINGS throttle controls)
-is the next deliverable. The delivery process above is in force: the work
-started from a fresh clone, `HEAD` was verified against
-`origin/codex/mdcng-fc2cmadb-providers` at `f261f671…`, and only pushed commits
-may be deployed.
+implemented in `route/admin.html`, guarded by
+`route/admin_ui_test.go:TestAdminPageErrorIndexControls`, and shipped as
+`custom-2026.09.19.2` (commit `5af8278`). Parts B (rolling five-minute provider
+statistics on SETTINGS) and C (lookup-driven provider health) are the next
+deliverables; read section B and C of that specification first.
+
+The release workflow in section D is in force: this work started from a fresh
+clone, `HEAD` was verified against `origin/codex/mdcng-fc2cmadb-providers`
+at `f261f671…`, newer remote documentation (`905868f`) was integrated rather
+than discarded, and only pushed commits were deployed.
+
+Reusable browser regression harness: [`deployment/e2e/admin-error-index.js`](deployment/e2e/admin-error-index.js).
+
+```sh
+mkdir -p /tmp/adminnext-e2e && cd /tmp/adminnext-e2e
+npm i playwright-core     # drives the installed Google Chrome, no browser download
+cp <repo>/deployment/e2e/admin-error-index.js .
+ADMIN_BASE=http://192.168.10.166:8080 node admin-error-index.js
+```
+
+The suite seeds real traces through `/admin/api/traces/*`, then asserts the
+error index, the summary-to-event focus (`document.activeElement` plus the
+`focus-flash` class), collapse/reopen, refresh while open, auto-expansion, the
+zero-error state, and both trace tabs in headless Chrome. It deletes the traces
+it created.
 
 ## Repository and branch
 
@@ -174,6 +195,28 @@ end-to-end success when downstream status was never reported.
 5. Emby plugin correlation/reporting and end-to-end tests.
 
 ## Deployment record
+
+Custom release `custom-2026.09.19.2` was deployed on 2026-09-19 20:22 UTC from
+commit `5af8278`. An earlier build of the same release (`b6d70d8`, image
+`sha256:ceaa677a…`) was live for ten minutes before the browser regression run
+reproduced a pre-existing `TypeError` in the run/step tree and a duplicated
+trace-level error; both were fixed and redeployed. Only `metatube` was rebuilt
+and recreated each time; PostgreSQL, FlareSolverr, provider-bridge,
+configuration, and `traces.db` were preserved. The final image is
+`sha256:0129e6d4…`, `/admin` serves page hash `2fb1ccd4…` on both the LAN and
+the public host (equal to the pushed `route/admin.html`), and 18/18 headless
+Chrome checks passed against the live admin (single failure, multiple failures,
+zero-error run, summary-to-event focus, collapse/reopen, refresh while open,
+auto-expansion, both trace tabs, no page errors).
+
+Rollback:
+
+```sh
+cd /mnt/cache_nvme_apps/appdata/metatube-stack
+docker tag kinlshum/metatube-server-providers:rollback-20260919-2015 \
+           kinlshum/metatube-server-providers:local   # release custom-2026.09.19.1
+docker compose up -d --no-deps metatube
+```
 
 Custom release `custom-2026.09.19.1` was deployed on 2026-09-19 19:35 UTC from
 commit `91586cb`. Only `metatube` was rebuilt and recreated; PostgreSQL,

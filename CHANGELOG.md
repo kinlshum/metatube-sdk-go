@@ -5,6 +5,13 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Still specified and pending: real rolling five-minute provider statistics
+  beside the SETTINGS throttle controls (`provider_windows.five_minutes`).
+- Specified lookup-driven provider health, fallback/degradation semantics,
+  observation provenance, and bounded startup/manual health checks.
+
+## custom-2026.09.19.2 — 2026-09-19
+
 - Added an error index to expanded video and actor enrichment traces. Every
   failure names its provider/component, failing stage, HTTP status or internal
   error code, message, time, attempt, and duration, and a `Focus event` control
@@ -13,13 +20,16 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
   trace, so a reader's collapse is not undone by the five-second refresh. An
   outright run failure is distinguished from a successful run that recorded
   provider failures, and a clean trace still shows an explicit `0 errors`.
-- Still specified and pending: real rolling five-minute provider statistics
-  beside the SETTINGS throttle controls (`provider_windows.five_minutes`).
-- Specified lookup-driven provider health, fallback/degradation semantics,
-  observation provenance, and bounded startup/manual health checks.
-- Added a mandatory fresh-clone/synchronize workflow and separate immutable
-  release and deployment records to prevent stale builds from replacing newer
-  code.
+- Fixed a `TypeError` that aborted the whole run → trace → step tree:
+  `stepWindow()` called `getTime()` on a number that was already milliseconds,
+  so the run panel rendered nothing and an error entry had no event to focus.
+- Stopped the trace-level error summary from duplicating timeline failures and
+  from blaming the provider that happened to be selected.
+- Documented the mandatory fresh-clone/synchronize workflow and the separate
+  immutable release and deployment records.
+- Verified with a real headless-Chrome regression suite against the live admin
+  covering all acceptance cases in `docs/METATUBE_ADMIN_NEXT_TODO.md`; the
+  suite ships as `deployment/e2e/admin-error-index.js`.
 - Added a mandatory fresh-clone/synchronize workflow and separate immutable
   release and deployment records to prevent stale builds from replacing newer
   code.

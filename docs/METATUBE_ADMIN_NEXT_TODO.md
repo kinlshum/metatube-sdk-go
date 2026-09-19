@@ -20,7 +20,9 @@ refresh provider health immediately.
   focuses it. A failed run is labelled differently from a successful run with
   provider failures, and a clean trace still shows an explicit `0 errors`.
   Coverage: `route/admin_ui_test.go:TestAdminPageErrorIndexControls`. The video
-  and actor tabs share this drawer code.
+  and actor tabs share this drawer code. Shipped as `custom-2026.09.19.2`
+  (commit `5af8278`); `deployment/e2e/admin-error-index.js` re-runs every
+  acceptance case below in headless Chrome against the live admin.
 - **B. Rolling `LAST 5 MIN` statistics on SETTINGS — pending.** The design,
   backend contract (`provider_windows.five_minutes`), UI, and test requirements
   in section B below are unchanged.
