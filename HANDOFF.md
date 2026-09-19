@@ -282,4 +282,50 @@ end-to-end debugger.
 - `98000bb` — native rolling logs and related admin work.
 
 Review the complete branch history for earlier provider, health, statistics,
+
+## Graylog integration session (2026-09-19)
+
+Implemented, tested and deployed on Kraken (branch commits `a2e696b`, `6e047c5`,
+`66532a4`):
+
+- `internal/gelf`: bounded, non-blocking GELF sender implementing `trace.Mirror`.
+  The trace service mirrors start, step and finish records with the required
+  common fields plus every correlation field. Tokens can be mounted from file
+  secrets (`METATUBE_GELF_TOKEN_FILE`, `METATUBE_GRAYLOG_TOKEN_FILE`).
+- `internal/logsearch`: Graylog 7 search contract verified live — `fields` is
+  mandatory and makes the answer CSV, the stream travels as the `streams`
+  parameter, and the decoded lines are sorted newest-first. Per-line origin
+  fields (`application`, `service`, `server`, `node`, `environment`) let one run
+  be followed across machines.
+- Admin: run → trace → step tree in the drawer, step-scoped log panel
+  (`TRACE TIMELINE` / `RECENT NATIVE LOGS` / `GRAYLOG LOGS`), badges, retention
+  labels, duplicate hiding with reveal, per-step filter and auto-follow, Graylog
+  deep link, plus an ingestion status strip with a probe button on both tabs.
+- Endpoints: `GET /admin/api/gelf`, `POST /admin/api/gelf/probe`,
+  `GET /admin/api/logs/search`, `GET /admin/api/trace-runs/:runID`, ingestion
+  block in `GET /admin/api/trace-stats`.
+- Deployment: dedicated MetaTube GELF HTTP input on `192.168.10.153:12203` with
+  its own rotatable token (shared `12201`/`12202` inputs untouched), search
+  credential `metatube-search` with the `MetaTube Search Reader` role
+  (`searches:*`, `streams:read`, `messages:read/analyze`; writes return 403).
+  Both credentials live in `/mnt/cache_nvme_apps/appdata/metatube-stack/secrets`
+  and are mounted as Docker secrets.
+
+Verified live: mirrored records stored with
+`application=metatube service=metatube-server server=kraken node=kraken-docker
+environment=homelab source_type=trace` and the correct `trace_id`/`run_id`, and
+retrievable through the adapter's query shape. Sender counters show deliveries
+and zero failures/drops; the token only travels in the `X-Graylog-Token` header.
+
+Outstanding Graylog-side issue (not a MetaTube defect): the Graylog LXC stopped
+storing messages at `2026-09-19T15:19:44Z` (Emby-sourced logs stopped earlier, at
+~`09:19Z`) while its inputs keep accepting (`HTTP 202`, input counter
+`incomingMessages` = 13), the process buffer usage is 0, the journal has no
+unread segments and Graylog reports zero indexing failures. Cluster health is
+green, the deflector targets `graylog_2`, and the LXC filesystem is at 93% (above
+OpenSearch's default 90% high disk watermark). Until that instance is fixed
+(free space and/or raise the datanode watermarks, then restart `graylog-server`),
+new records stay invisible in the `GRAYLOG` section; the sender keeps delivering
+in the meantime and no MetaTube change is required afterwards.
+
 FlareSolverr, and admin changes.
