@@ -1,6 +1,7 @@
 package logsearch
 
 import (
+	"bufio"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -17,6 +18,10 @@ import (
 
 	"github.com/metatube-community/metatube-sdk-go/internal/trace"
 )
+
+// maxJSONAnswerBytes bounds a JSON envelope answer so a broken backend cannot
+// stream unbounded data into memory.
+const maxJSONAnswerBytes = 32 << 20
 
 // graylogFields lists the record fields the adapter reads. Only these are copied
 // into a result, so restricted fields never leave Graylog.
@@ -116,7 +121,12 @@ func (b *GraylogBackend) Search(ctx context.Context, query Query) Result {
 	if err != nil {
 		return b.failed(result, "Graylog request could not be built", err)
 	}
-	request.Header.Set("Accept", "application/json")
+	// A `fields` query answers with one CSV row per message, but only when CSV is
+	// accepted: with `Accept: application/json` Graylog 7 replies with a JSON
+	// envelope whose `messages` array is empty for this endpoint, which would look
+	// like "no matches". The decoder still tolerates a JSON envelope so a version
+	// difference cannot silently empty the panel.
+	request.Header.Set("Accept", "text/csv")
 	request.Header.Set("X-Requested-By", "metatube-admin")
 	// Graylog API tokens authenticate as the username with the literal password
 	// "token"; the token itself never leaves this process.
@@ -160,18 +170,109 @@ func (b *GraylogBackend) Search(ctx context.Context, query Query) Result {
 	return result
 }
 
-// graylogAnswer is the decoded CSV answer of an absolute search.
+// graylogAnswer is the decoded answer of an absolute search.
 type graylogAnswer struct {
 	Lines []Line
 	Total int
+}
+
+// firstNonSpace returns the first non-whitespace byte of a peeked buffer.
+func firstNonSpace(data []byte) byte {
+	for _, char := range data {
+		switch char {
+		case ' ', '\t', '\r', '\n':
+			continue
+		}
+		return char
+	}
+	return 0
+}
+
+// decodeGraylogJSON reads the JSON envelope (or the newline-delimited stream of
+// envelopes) Graylog returns when it does not answer with CSV. Only the fields
+// requested from Graylog are copied out, so the result stays bounded.
+func decodeGraylogJSON(body io.Reader, limit int) (graylogAnswer, error) {
+	answer := graylogAnswer{Lines: make([]Line, 0, 32)}
+	decoder := json.NewDecoder(io.LimitReader(body, maxJSONAnswerBytes))
+	for {
+		envelope := struct {
+			TotalResults int `json:"total_results"`
+			Messages     []struct {
+				Message map[string]any `json:"message"`
+			} `json:"messages"`
+		}{}
+		err := decoder.Decode(&envelope)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			if len(answer.Lines) > 0 {
+				// A truncated trailing chunk still leaves the parsed lines usable.
+				break
+			}
+			return graylogAnswer{}, err
+		}
+		if envelope.TotalResults > answer.Total {
+			answer.Total = envelope.TotalResults
+		}
+		for _, wrapper := range envelope.Messages {
+			message := sanitizeGraylogFields(wrapper.Message)
+			if len(message) == 0 {
+				continue
+			}
+			if answer.Total < len(answer.Lines)+1 {
+				answer.Total = len(answer.Lines) + 1
+			}
+			if limit > 0 && len(answer.Lines) >= limit {
+				continue
+			}
+			answer.Lines = append(answer.Lines, graylogLine(message))
+		}
+	}
+	sort.SliceStable(answer.Lines, func(i, j int) bool {
+		return answer.Lines[i].At.After(answer.Lines[j].At)
+	})
+	return answer, nil
+}
+
+// sanitizeGraylogFields keeps only the allow-listed fields of a JSON message and
+// bounds every value, mirroring what the CSV path does.
+func sanitizeGraylogFields(fields map[string]any) map[string]any {
+	if len(fields) == 0 {
+		return nil
+	}
+	clean := make(map[string]any, len(fields))
+	for _, key := range graylogFields {
+		value, ok := fields[key]
+		if !ok || value == nil {
+			continue
+		}
+		if text, isString := value.(string); isString {
+			clean[key] = trace.SanitizeString(text)
+			continue
+		}
+		clean[key] = value
+	}
+	return clean
 }
 
 // decodeGraylogCSV parses the answer Graylog returns for an absolute search once
 // `fields` is requested (mandatory in Graylog 7): a header row of field names
 // followed by one row per message. Only the documented fields are requested, so
 // restricted fields stay inside Graylog.
+//
+// The answer of a Graylog version that ignores the CSV content type is a JSON
+// envelope (or a stream of them); that shape is decoded as well, because an
+// envelope whose `messages` array cannot be read would silently look like
+// "no matches".
 func decodeGraylogCSV(body io.Reader, limit int) (graylogAnswer, error) {
-	reader := csv.NewReader(body)
+	buffered := bufio.NewReader(body)
+	peek, _ := buffered.Peek(64)
+	if firstNonSpace(peek) == '{' {
+		return decodeGraylogJSON(buffered, limit)
+	}
+
+	reader := csv.NewReader(buffered)
 	reader.FieldsPerRecord = -1
 	reader.LazyQuotes = true
 

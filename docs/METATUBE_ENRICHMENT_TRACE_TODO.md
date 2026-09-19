@@ -847,6 +847,11 @@ Verified live on 2026-09-19 after Graylog1 was upgraded to 7.1.9:
   answering `HTTP 202`, so such a record never appears in Graylog. MetaTube always
   sends a non-empty `short_message`; every other Kraken sender (provider bridge,
   Windmill, Vector) must do the same.
+- The search adapter must request CSV (`Accept: text/csv`). Requesting
+  `Accept: application/json` together with `fields` makes Graylog 7 return a JSON
+  envelope whose `messages` array is empty, which looked like "no matches" even
+  though the records were stored; the adapter now asks for CSV and decodes a JSON
+  envelope defensively as well.
 
 
 report their stages, the UI must say downstream status is unavailable.

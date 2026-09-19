@@ -239,10 +239,59 @@ func TestGraylogSearchParsesCSVAnswer(t *testing.T) {
 	assert.Equal(t, 2, limited.Total)
 }
 
+func TestGraylogSearchAsksForCSVAndParsesJSONEnvelope(t *testing.T) {
+	var accept string
+	jsonAnswer := strings.Join([]string{
+		`{"query":"run_id:\"run-aaaa-1111\"","total_results":2,"fields":["timestamp","message"],"messages":[{"message":{"timestamp":"2026-09-19T18:29:39.455Z","message":"trace started","log_level":"info","trace_id":"trace-aaaa-1111","run_id":"run-aaaa-1111","application":"metatube","service":"metatube-server","server":"kraken"}}]}`,
+		`{"total_results":2,"messages":[{"message":{"timestamp":"2026-09-19T18:29:39.515Z","message":"trace finished: status=failed","log_level":"error","trace_id":"trace-aaaa-1111","run_id":"run-aaaa-1111"}}]}`,
+	}, "\n")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept = r.Header.Get("Accept")
+		// A version that ignores the CSV content type answers with JSON.
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(jsonAnswer))
+	}))
+	defer server.Close()
+
+	backend := NewGraylogBackend(GraylogConfig{Enabled: true, APIURL: server.URL, Token: "t"}.WithDefaults())
+	result := backend.Search(context.Background(), Query{RunID: "run-aaaa-1111", Limit: 10})
+
+	// Asking for CSV is what keeps the panel populated: `Accept: application/json`
+	// makes Graylog 7 answer with an envelope whose messages array is empty.
+	assert.Equal(t, "text/csv", accept)
+	require.Equal(t, "ok", result.Status, result.Error)
+	require.Len(t, result.Lines, 2)
+	assert.Equal(t, 2, result.MatchCount)
+	// Newest first, with the origin fields intact.
+	assert.Equal(t, "trace finished: status=failed", result.Lines[0].Message)
+	assert.Equal(t, trace.LevelError, result.Lines[0].Level)
+	assert.Equal(t, "run-aaaa-1111", result.Lines[0].RunID)
+	assert.Equal(t, "metatube-server", result.Lines[1].Service)
+	assert.Equal(t, "kraken", result.Lines[1].Server)
+
+	// An empty JSON envelope is a clean "no matches", not an error.
+	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"query":"x","total_results":0,"messages":[]}`))
+	}))
+	defer empty.Close()
+	result = NewGraylogBackend(GraylogConfig{Enabled: true, APIURL: empty.URL, Token: "t"}).Search(context.Background(), Query{Limit: 5})
+	assert.Equal(t, "ok", result.Status)
+	assert.Empty(t, result.Lines)
+}
+
+func TestFirstNonSpaceDetectsJSON(t *testing.T) {
+	assert.Equal(t, byte('{'), firstNonSpace([]byte("  \n {\"a\":1}")))
+	assert.Equal(t, byte('"'), firstNonSpace([]byte(`"timestamp"`)))
+	assert.Equal(t, byte(0), firstNonSpace([]byte("   ")))
+}
+
 func TestGraylogSearchReadsCSVOverHTTP(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/search/universal/absolute", r.URL.Path)
 		assert.Equal(t, "metatube-admin", r.Header.Get("X-Requested-By"))
+		assert.Equal(t, "text/csv", r.Header.Get("Accept"))
 		// An API token authenticates as the username with the literal password.
 		user, password, ok := r.BasicAuth()
 		assert.True(t, ok)

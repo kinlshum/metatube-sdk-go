@@ -171,3 +171,8 @@ Two things to know when reading the `GRAYLOG` section:
    message that breaks the GELF contract (most often an empty mandatory
    `short_message`) is dropped silently and never appears in Graylog. MetaTube
    always sends a non-empty `short_message`; every other sender must do the same.
+3. The search adapter must ask for CSV (`Accept: text/csv`). Sending
+   `Accept: application/json` together with `fields` makes Graylog 7 answer with a
+   JSON envelope whose `messages` array is empty, which looks like "no matches"
+   while the records are in fact stored. The adapter therefore requests CSV and
+   still decodes a JSON envelope defensively.
