@@ -442,12 +442,16 @@
     return `<div class="log-line ${line.level==='error'?'err':''}"><span class="at">${new Date(line.at).toLocaleTimeString()}</span>
       <span class="source-badge ${esc(line.source||'native')}">${esc(line.badge||line.source||'')}</span>
       <span>${esc(line.message||'')}${origin?` <span class="note">[${esc(origin)}]</span>`:''}${meta?` <span class="note">${esc(meta)}</span>`:''}</span></div>`}
-  function stepTraceLines(stepEl){const traceId=stepEl.dataset.trace,sequence=Number(stepEl.dataset.seq||0),group=runState.group||{};
-    return (group.events||[]).filter(event=>event.trace_id===traceId&&Number(event.sequence||0)===sequence).map(event=>({
+  function stepTraceLines(stepEl){const traceId=stepEl.dataset.trace,group=runState.group||{};
+    const from=stepEl.dataset.from?new Date(stepEl.dataset.from).getTime():0;
+    const until=stepEl.dataset.until?new Date(stepEl.dataset.until).getTime():0;
+    return (group.events||[]).filter(event=>{if(event.trace_id!==traceId)return false;
+      const at=new Date(event.at).getTime();if(Number.isNaN(at))return false;
+      if(from&&at<from)return false;if(until&&at>until)return false;return true}).map(event=>({
       source:'trace',badge:'TRACE',at:event.at,level:event.level,component:event.component,stage:event.stage,provider:event.provider,
       message:(event.message||'')+(event.details&&Object.keys(event.details).length?` ${JSON.stringify(event.details)}`:'')}))}
-  function logSectionHtml(title,result,lines,hidden,note){const status=result?`${esc(result.status||'')}${result.truncated?' · truncated':''}${result.match_count?` · ${Number(result.match_count)} match(es)`:''}`:'';
-    const head=`<div class="head"><span class="source-badge ${esc((result&&result.source)||'native')}">${esc(title)}</span><span class="note">${status}</span>
+  function logSectionHtml(title,source,result,lines,hidden,note){const status=result?`${esc(result.status||'')}${result.truncated?' · truncated':''}${result.match_count?` · ${Number(result.match_count)} match(es)`:''}`:'';
+    const head=`<div class="head"><span class="source-badge ${esc(source)}">${esc(title)}</span><span class="note">${status}</span>
       <span class="note">${esc((result&&result.retention)||'')}</span>${note||''}${hidden?`<span class="note">· ${hidden} duplicate line(s) hidden</span>`:''}</div>`;
     const body=lines.length?lines.map(logLineHtml).join(''):`<div class="empty">${esc((result&&result.detail)||'No matching lines in this window.')}</div>`;
     return `<section class="log-section">${head}<div class="log-body">${body}</div></section>`}
@@ -484,9 +488,9 @@
         <button data-log-reveal ${hiddenTotal&&state.dedupe?'':'hidden'}>Reveal ${hiddenTotal} hidden</button>
         <label><input type="checkbox" data-log-follow ${state.follow?'checked':''}> Auto-follow</label>
         <button data-step-refresh>Refresh logs</button></div>
-      ${logSectionHtml('TRACE TIMELINE',null,traceLines,0,'<span class="note">structured step only</span>')}
-      ${logSectionHtml('NATIVE',native,nativeLines,state.dedupe?hiddenTotal:0)}
-      ${logSectionHtml('GRAYLOG',graylog,graylogLines,0,`${graylogNote}${graylogLink}`)}
+      ${logSectionHtml('TRACE TIMELINE','trace',null,traceLines,0,'<span class="note">structured steps in this window</span>')}
+      ${logSectionHtml('NATIVE','native',native,nativeLines,state.dedupe?hiddenTotal:0)}
+      ${logSectionHtml('GRAYLOG','graylog',graylog,graylogLines,0,`${graylogNote}${graylogLink}`)}
       </div>`;
     const panel=body.querySelector('[data-step-panel]');
     panel.querySelector('[data-step-refresh]').addEventListener('click',()=>loadStepLogs(kind,stepEl));

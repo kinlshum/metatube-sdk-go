@@ -2,7 +2,6 @@ package logsearch
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,23 +36,12 @@ func TestGraylogSearchSuccessAndRedaction(t *testing.T) {
 	var captured *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		captured = request
-		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"total_results": 12,
-			"messages": []any{
-				map[string]any{"message": map[string]any{
-					"timestamp":     "2026-09-19T04:00:00.000Z",
-					"message":       "provider failed with token=topsecretvalue",
-					"level":         "error",
-					"component":     "provider",
-					"provider":      "JavLibrary",
-					"trace_id":      "trace-aaaa-1111",
-					"run_id":        "run-1111",
-					"duration_ms":   42.5,
-					"authorization": "Bearer abcdef1234567890",
-				}},
-			},
-		})
+		// Graylog answers an absolute search with CSV once `fields` is set.
+		writer.Header().Set("Content-Type", "text/csv")
+		_, _ = writer.Write([]byte(strings.Join([]string{
+			`"timestamp","message","level","log_level","component","provider","trace_id","run_id","duration_ms"`,
+			`"2026-09-19T04:00:00.000Z","provider failed with token=topsecretvalue","3","error","provider","JavLibrary","trace-aaaa-1111","run-aaaa-1111","42.5"`,
+		}, "\n")))
 	}))
 	defer server.Close()
 
@@ -100,7 +88,8 @@ func TestGraylogSearchSuccessAndRedaction(t *testing.T) {
 	assert.Equal(t, "metatube-admin", captured.Header.Get("X-Requested-By"))
 	query := captured.URL.Query().Get("query")
 	assert.Contains(t, query, `trace_id:"trace-aaaa-1111"`)
-	assert.Contains(t, query, `stream:"000000000000000000000001"`)
+	assert.NotContains(t, query, "stream:", "Graylog 7 takes the stream as a parameter")
+	assert.Equal(t, "000000000000000000000001", captured.URL.Query().Get("streams"))
 	assert.Contains(t, query, `\"quote\"`, "quotes in user text must be escaped")
 	assert.Contains(t, query, `\\ slash`)
 	assert.Equal(t, "200", captured.URL.Query().Get("limit"))
@@ -109,8 +98,8 @@ func TestGraylogSearchSuccessAndRedaction(t *testing.T) {
 	// The deep link is built from the configured external URL only.
 	assert.True(t, strings.HasPrefix(result.ExternalSearchURL, "https://graylog.example/search?"))
 	assert.Contains(t, result.ExternalSearchURL, "rangetype=absolute")
-	assert.Equal(t, 12, result.MatchCount)
-	assert.True(t, result.Truncated, "results beyond the returned page are flagged")
+	assert.Equal(t, 1, result.MatchCount)
+	assert.False(t, result.Truncated)
 }
 
 func TestGraylogFailureModesDegradeCleanly(t *testing.T) {
@@ -140,7 +129,7 @@ func TestGraylogFailureModesDegradeCleanly(t *testing.T) {
 	slow := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		time.Sleep(300 * time.Millisecond)
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte(`{"messages":[]}`))
+		_, _ = writer.Write([]byte(`"timestamp","message"`))
 	}))
 	defer slow.Close()
 	result = NewGraylogBackend(GraylogConfig{
@@ -150,9 +139,10 @@ func TestGraylogFailureModesDegradeCleanly(t *testing.T) {
 	assert.Contains(t, result.Detail, "timed out")
 
 	// An empty result is a success: it must never look like a failure signal.
+	// Graylog answers with the field header only when nothing matched.
 	empty := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"total_results":0,"messages":[]}`))
+		writer.Header().Set("Content-Type", "text/csv")
+		_, _ = writer.Write([]byte(`"timestamp","message","trace_id"`))
 	}))
 	defer empty.Close()
 	result = NewGraylogBackend(GraylogConfig{Enabled: true, APIURL: empty.URL, Token: "t"}).
@@ -191,22 +181,97 @@ func TestGraylogSearchURLUsesGraylogSevenParameters(t *testing.T) {
 	require.NoError(t, err)
 	values := parsed.Query()
 
-	// Graylog 7 rejects `sort=timestamp` with HTTP 500, so the field:direction
-	// form and an explicit order are mandatory.
-	assert.Equal(t, "timestamp:desc", values.Get("sort"))
-	assert.Equal(t, "desc", values.Get("order"))
-	assert.Equal(t, "false", values.Get("decorate"))
+	// Graylog 7 requires `fields` (its answer becomes CSV) and takes the stream
+	// as its own parameter instead of the legacy `stream:` query clause.
 	assert.Equal(t, "25", values.Get("limit"))
 	assert.NotEmpty(t, values.Get("from"))
 	assert.NotEmpty(t, values.Get("to"))
+	assert.Equal(t, "000000000000000000000001", values.Get("streams"))
+	assert.Contains(t, values.Get("fields"), "trace_id")
+	assert.Contains(t, values.Get("fields"), "application")
 	assert.Contains(t, values.Get("query"), `trace_id:"trace-aaaa-1111"`)
 	assert.Contains(t, values.Get("query"), `run_id:"run-aaaa-1111"`)
-	assert.Contains(t, values.Get("query"), "stream:")
+	assert.NotContains(t, values.Get("query"), "stream:")
 
 	// The token never travels in the URL.
 	assert.NotContains(t, target, "search-token")
 	assert.NotContains(t, values.Get("fields"), "token")
-	assert.Contains(t, values.Get("fields"), "application")
+}
+
+func TestGraylogSearchParsesCSVAnswer(t *testing.T) {
+	answer := strings.Join([]string{
+		`"timestamp","message","level","log_level","component","stage","provider","trace_id","run_id","application","service","server","node","environment","source_type","logger"`,
+		`"2026-09-19T15:19:24.487Z","trace started","6","info","metatube","request_received","","b905981c-29a0-4736-8b03-1f5b7f82c876","run-e2e-1","metatube","metatube-server","kraken","kraken-docker","homelab","trace","metatube-server.metatube"`,
+		`"2026-09-19T15:19:25.001Z","provider responded","3","error","provider","provider_failed","JavBus","b905981c-29a0-4736-8b03-1f5b7f82c876","run-e2e-1","metatube","metatube-server","kraken","kraken-docker","homelab","trace","metatube-server.provider"`,
+		`"broken","row with, a comma","6"`,
+	}, "\n")
+
+	decoded, err := decodeGraylogCSV(strings.NewReader(answer), 50)
+	require.NoError(t, err)
+	require.Len(t, decoded.Lines, 2, "a malformed short row is ignored, not rendered")
+	assert.Equal(t, 2, decoded.Total)
+
+	// Newest first, with the required common fields and correlation set intact.
+	first := decoded.Lines[0]
+	assert.Equal(t, "provider responded", first.Message)
+	assert.Equal(t, trace.LevelError, first.Level, "the string log_level wins over the numeric level")
+	assert.Equal(t, "provider", first.Component)
+	assert.Equal(t, "JavBus", first.Provider)
+	assert.Equal(t, "b905981c-29a0-4736-8b03-1f5b7f82c876", first.TraceID)
+	assert.Equal(t, "run-e2e-1", first.RunID)
+	assert.Equal(t, "metatube", first.Application)
+	assert.Equal(t, "metatube-server", first.Service)
+	assert.Equal(t, "kraken", first.Server)
+	assert.Equal(t, "kraken-docker", first.Node)
+	assert.Equal(t, "homelab", first.Environment)
+	assert.Equal(t, "trace", first.SourceType)
+	assert.True(t, first.At.After(decoded.Lines[1].At) || first.At.Equal(decoded.Lines[1].At))
+
+	// An empty answer is not an error.
+	empty, err := decodeGraylogCSV(strings.NewReader(""), 50)
+	require.NoError(t, err)
+	assert.Empty(t, empty.Lines)
+
+	// The row limit is honoured while the match count keeps counting.
+	limited, err := decodeGraylogCSV(strings.NewReader(answer), 1)
+	require.NoError(t, err)
+	assert.Len(t, limited.Lines, 1)
+	assert.Equal(t, 2, limited.Total)
+}
+
+func TestGraylogSearchReadsCSVOverHTTP(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/search/universal/absolute", r.URL.Path)
+		assert.Equal(t, "metatube-admin", r.Header.Get("X-Requested-By"))
+		// An API token authenticates as the username with the literal password.
+		user, password, ok := r.BasicAuth()
+		assert.True(t, ok)
+		assert.Equal(t, "t", user)
+		assert.Equal(t, "token", password)
+		assert.Contains(t, r.URL.Query().Get("fields"), "trace_id")
+		w.Header().Set("Content-Type", "text/csv")
+		_, _ = w.Write([]byte(strings.Join([]string{
+			`"timestamp","message","log_level","trace_id","run_id"`,
+			`"2026-09-19T15:19:24.487Z","trace started","info","trace-aaaa-1111","run-aaaa-1111"`,
+		}, "\n")))
+	}))
+	defer server.Close()
+
+	backend := NewGraylogBackend(GraylogConfig{
+		Enabled: true, APIURL: server.URL + "/api", Token: "t",
+	}.WithDefaults())
+	result := backend.Search(context.Background(), Query{TraceIDs: []string{"trace-aaaa-1111"}, Limit: 10})
+
+	require.Equal(t, "ok", result.Status, result.Error)
+	require.Len(t, result.Lines, 1)
+	assert.Equal(t, "trace started", result.Lines[0].Message)
+	assert.Equal(t, "run-aaaa-1111", result.Lines[0].RunID)
+	assert.Equal(t, "trace-aaaa-1111", result.Lines[0].TraceID)
+	assert.True(t, result.Configured)
+	assert.True(t, result.Available)
+	assert.Equal(t, 1, result.MatchCount)
+	assert.False(t, result.Truncated)
+	assert.NotNil(t, result.LastSuccessAt)
 }
 
 func TestGraylogLineReadsOriginAndLevel(t *testing.T) {

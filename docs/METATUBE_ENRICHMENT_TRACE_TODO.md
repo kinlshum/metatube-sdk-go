@@ -799,8 +799,11 @@ commands):
    `/api/search/universal/absolute` with a least-privilege API token that is not
    the ingestion token and not a user password. Both tokens can be mounted from
    file secrets (`METATUBE_GRAYLOG_TOKEN_FILE`, `METATUBE_GELF_TOKEN_FILE`).
-   The window (24 h default), the result count (200/500) and the timeout (5 s)
-   are clamped server-side, and the adapter reports one status per source.
+   Graylog 7 requires the `fields` parameter (its answer is a CSV document with
+   only those fields) and takes the stream as the `streams` parameter, so the
+   adapter sends both and sorts the decoded lines newest-first. The window (24 h
+   default), the result count (200/500) and the timeout (5 s) are clamped
+   server-side, and the adapter reports one status per source.
 3. **Health/status cards**: `/admin/api/gelf` and the ingestion strip on both
    trace tabs report reachability of the last probe, last successful send,
    failed and dropped counts, queue depth, last successful search and
@@ -814,10 +817,10 @@ commands):
    `traces.db` keeps the authoritative timeline.
 
 Deployed on Kraken against Graylog 7.1.8 (`192.168.10.153`, API
-`https://graylog.madtechinc.com`, GELF `12201` application / `12202`
-Vector/container). The search credential uses the dedicated `metatube-search`
-account with the `MetaTube Search Reader` role (search permissions only; a write
-attempt returns HTTP 403), and Graylog 7 needs `sort=timestamp:desc` with an
-explicit `order`, which the adapter sends.
+`https://graylog.madtechinc.com`, GELF HTTP `12203` dedicated MetaTube input;
+the shared application input on `12201` and the Vector/container input on
+`12202` are untouched). The search credential uses the dedicated
+`metatube-search` account with the `MetaTube Search Reader` role (search
+permissions only; a write attempt returns HTTP 403).
 
 report their stages, the UI must say downstream status is unavailable.

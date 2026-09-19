@@ -2,10 +2,14 @@ package logsearch
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -135,26 +139,17 @@ func (b *GraylogBackend) Search(ctx context.Context, query Query) Result {
 		return b.failed(result, fmt.Sprintf("Graylog returned HTTP %d", response.StatusCode), nil)
 	}
 
-	payload := struct {
-		TotalResults int `json:"total_results"`
-		Messages     []struct {
-			Message map[string]any `json:"message"`
-		} `json:"messages"`
-	}{}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+	payload, err := decodeGraylogCSV(response.Body, result.Effective.Limit)
+	if err != nil {
 		return b.failed(result, "Graylog returned an unreadable response", err)
 	}
 
-	lines := make([]Line, 0, len(payload.Messages))
-	for _, wrapper := range payload.Messages {
-		lines = append(lines, graylogLine(wrapper.Message))
+	result.Lines = payload.Lines
+	result.MatchCount = payload.Total
+	if result.MatchCount < len(payload.Lines) {
+		result.MatchCount = len(payload.Lines)
 	}
-	result.Lines = lines
-	result.MatchCount = payload.TotalResults
-	if result.MatchCount < len(lines) {
-		result.MatchCount = len(lines)
-	}
-	result.Truncated = result.MatchCount > len(lines)
+	result.Truncated = payload.Total > len(payload.Lines)
 	result.Available = true
 	result.Status = "ok"
 	if clamped {
@@ -163,6 +158,68 @@ func (b *GraylogBackend) Search(ctx context.Context, query Query) Result {
 	b.markSuccess()
 	result.LastSuccessAt = b.lastSuccess()
 	return result
+}
+
+// graylogAnswer is the decoded CSV answer of an absolute search.
+type graylogAnswer struct {
+	Lines []Line
+	Total int
+}
+
+// decodeGraylogCSV parses the answer Graylog returns for an absolute search once
+// `fields` is requested (mandatory in Graylog 7): a header row of field names
+// followed by one row per message. Only the documented fields are requested, so
+// restricted fields stay inside Graylog.
+func decodeGraylogCSV(body io.Reader, limit int) (graylogAnswer, error) {
+	reader := csv.NewReader(body)
+	reader.FieldsPerRecord = -1
+	reader.LazyQuotes = true
+
+	header, err := reader.Read()
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return graylogAnswer{Lines: make([]Line, 0)}, nil
+		}
+		return graylogAnswer{}, err
+	}
+	names := make([]string, 0, len(header))
+	for _, name := range header {
+		names = append(names, strings.TrimSpace(name))
+	}
+
+	answer := graylogAnswer{Lines: make([]Line, 0, 32)}
+	for {
+		record, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return graylogAnswer{}, err
+		}
+		if len(record) != len(names) {
+			// A malformed row is ignored rather than turned into a fake line.
+			continue
+		}
+		answer.Total++
+		if limit > 0 && len(answer.Lines) >= limit {
+			// Keep counting so the UI can report the real match count.
+			continue
+		}
+		fields := make(map[string]any, len(names))
+		for index, name := range names {
+			if value := strings.TrimSpace(record[index]); value != "" {
+				fields[name] = value
+			}
+		}
+		answer.Lines = append(answer.Lines, graylogLine(fields))
+	}
+
+	// Graylog's answer carries no explicit ordering parameter in 7.x, so the
+	// newest line is put first here.
+	sort.SliceStable(answer.Lines, func(i, j int) bool {
+		return answer.Lines[i].At.After(answer.Lines[j].At)
+	})
+	return answer, nil
 }
 
 func (b *GraylogBackend) failed(result Result, detail string, err error) Result {
@@ -208,9 +265,8 @@ func (b *GraylogBackend) buildQuery(query Query) string {
 	}
 
 	must := make([]string, 0, 3)
-	if b.cfg.StreamID != "" {
-		must = append(must, "stream:"+graylogValue(b.cfg.StreamID))
-	}
+	// The stream restriction is sent as the `streams` request parameter, which
+	// replaces the legacy `stream:` query clause in Graylog 7.
 	switch len(clauses) {
 	case 0:
 	case 1:
@@ -238,11 +294,12 @@ func (b *GraylogBackend) searchURL(query string, since, until *time.Time, limit 
 		values.Set("to", until.UTC().Format(graylogTimeFormat))
 	}
 	values.Set("limit", strconv.Itoa(limit))
-	// Graylog 7 requires the `<field>:<direction>` sort form and an explicit
-	// order; `sort=timestamp` alone is rejected with HTTP 500.
-	values.Set("sort", "timestamp:desc")
-	values.Set("order", "desc")
-	values.Set("decorate", "false")
+	if b.cfg.StreamID != "" {
+		// Graylog 7 replaced the `stream:` query clause with this parameter.
+		values.Set("streams", b.cfg.StreamID)
+	}
+	// `fields` is mandatory in Graylog 7 and makes the answer a CSV document
+	// containing only these fields.
 	values.Set("fields", strings.Join(graylogFields, ","))
 	return endpoint + "?" + values.Encode()
 }

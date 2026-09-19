@@ -92,9 +92,11 @@ services:
       METATUBE_GRAYLOG_MAX_RANGE_HOURS: "24"
       # Structured GELF mirror: every trace record is also stored in Graylog so a
       # run can be followed across MetaTube, the bridge, FlareSolverr, Windmill,
-      # the reverse proxy and the Emby report.
+      # the reverse proxy and the Emby report. Use a dedicated input (for example
+      # a MetaTube GELF HTTP input on port 12203) so its token can be rotated
+      # without touching the shared application or Vector inputs.
       METATUBE_GELF_ENABLED: ${METATUBE_GELF_ENABLED:-false}
-      METATUBE_GELF_URL: ${METATUBE_GELF_URL:-http://192.168.10.153:12201/gelf}
+      METATUBE_GELF_URL: ${METATUBE_GELF_URL:-http://192.168.10.153:12203/gelf}
       METATUBE_GELF_TOKEN_FILE: /run/secrets/gelf_ingest_token
       METATUBE_GELF_APPLICATION: metatube
       METATUBE_GELF_SERVICE: metatube-server
