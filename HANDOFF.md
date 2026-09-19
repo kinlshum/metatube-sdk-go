@@ -142,6 +142,21 @@ end-to-end success when downstream status was never reported.
 
 ## Deployment record
 
+Custom release `custom-2026.09.19.1` was deployed on 2026-09-19 19:35 UTC from
+commit `91586cb`. Only `metatube` was rebuilt and recreated; PostgreSQL,
+FlareSolverr, provider-bridge, configuration, and `traces.db` were preserved.
+The deployed image is
+`sha256:a3209f6b6cb8196005809962244f72a1bf87ddfe70c7699ff26ee012e99aa3cc`.
+The live `/admin` page matched `route/admin.html` at SHA-256 `2d61d962…`, the
+trace API remained healthy, and browser verification confirmed that clicking a
+job expands its debugger immediately below the selected row and clicking it
+again collapses it.
+
+Full `go test ./...` was also run. Application, route, trace, Graylog, and GELF
+packages passed; unrelated network-dependent DUGA/FALENO provider tests failed
+against their live sites and the pre-existing face-detector fixture still
+reports a position mismatch.
+
 Deployed on 2026-09-19 03:18 UTC (2026-09-18 23:18 EDT) from commit `9da50ec`:
 
 - Image `kinlshum/metatube-server-providers:local` on Kraken, built by
