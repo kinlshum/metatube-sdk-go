@@ -14,9 +14,9 @@ readonly admin_url=http://192.168.10.166:8080/admin
 readonly providers_url=http://192.168.10.166:8080/v1/providers
 readonly lock_file=/var/lock/deploy-metatube1.lock
 readonly -a preserved_containers=(
-  postgres
-  provider-bridge
-  flaresolverr
+  metatube-postgres
+  metatube-provider-bridge
+  metatube-flaresolverr
   metatube2
   metatube2-postgres
   metatube2-provider-bridge
