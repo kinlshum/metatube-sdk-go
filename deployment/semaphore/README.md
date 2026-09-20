@@ -30,3 +30,16 @@ The inventory connects with a dedicated, unprivileged
 general root or Docker access. Semaphore stores its private key in the
 encrypted key store. Never commit the private key, API tokens, or production
 `.env` values to this repository.
+
+## Installed state
+
+Configured on the Unraid Semaphore server (`192.168.10.150`) on 2026-09-20:
+
+- repository ID `1`, environment ID `1`, inventory ID `1`, template ID `1`;
+- Kraken account `semaphore-metatube2` is explicitly allowed by SSH and has
+  only the fixed wrapper in `/etc/sudoers.d/semaphore-metatube2`;
+- the wrapper is installed root-owned at
+  `/usr/local/sbin/deploy-metatube2`;
+- Semaphore task `1` completed successfully in Ansible check mode, verifying
+  repository checkout, inventory resolution, encrypted-key SSH access, and
+  playbook wiring without restarting MetaTube2.
