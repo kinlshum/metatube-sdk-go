@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Added row checkboxes, visible-page select-all, and confirmed bulk deletion to
+  both video and actor enrichment trace tabs. Selection survives automatic
+  refreshes and checkbox clicks do not open or close the trace detail drawer.
+
 ## custom-2026.09.19.5 — 2026-09-20
 
 - Completed MetaTube2 isolation with dedicated `provider-bridge2` and

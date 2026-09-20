@@ -40,6 +40,8 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		`id="traceVideoErrors"`, `id="traceActorSince"`,
 		`id="traceVideoRefresh"`, `id="traceVideoPause"`, `id="traceVideoFollow"`,
 		`id="traceActorRefresh"`, `id="traceActorPause"`, `id="traceActorFollow"`,
+		`id="traceVideoSelectAll"`, `id="traceActorSelectAll"`,
+		`id="traceVideoDeleteSelected"`, `id="traceActorDeleteSelected"`,
 		`id="traceVideoPrev"`, `id="traceVideoNext"`, `id="traceVideoPager"`,
 		`id="traceActorPrev"`, `id="traceActorNext"`, `id="traceActorPager"`,
 		`id="traceVideoRows"`, `id="traceActorRows"`,
@@ -54,6 +56,8 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		"auto-refresh must run only while the tab is visible")
 	assert.Contains(t, body, "Awaiting client report")
 	assert.Contains(t, body, "Show in LOGS", "traces must link back to the general log lines")
+	assert.Contains(t, body, "deleteSelectedTraces(kind)", "selected traces must support confirmed bulk deletion")
+	assert.Contains(t, body, "data-select-trace", "each trace row must expose a selection checkbox")
 	assert.Contains(t, body, "field-changes", "enrichment field changes must be rendered")
 	assert.Contains(t, body, "ETATUBE_ADMIN_TOKEN", "a missing admin token must produce a clear hint")
 
