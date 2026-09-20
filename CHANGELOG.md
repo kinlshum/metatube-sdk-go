@@ -14,6 +14,9 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
   a JAVDB provider ID. The plugin source currently lives outside this Git root,
   so it must be versioned, built, and deployed before the production behavior
   can be called complete.
+- Fixed trace attribution so generic `python-httpx`/`python-urllib` callers are
+  recorded as `python-client`, not falsely presented as Windmill. Real clients
+  should send `X-MetaTube-Client` for an authoritative name.
 
 - Still specified and pending: real rolling five-minute provider statistics
   beside the SETTINGS throttle controls (`provider_windows.five_minutes`).

@@ -111,7 +111,11 @@ func guessClient(userAgent string) string {
 	case strings.Contains(lower, "metatube/"):
 		return "emby-plugin"
 	case strings.Contains(lower, "python-httpx"), strings.Contains(lower, "python-urllib"):
-		return "windmill"
+		// Generic Python user agents are used by JAV Master, Windmill and
+		// operator scripts. Calling every one of them Windmill makes the trace
+		// UI actively misleading. Integrations that need a stable identity must
+		// send X-MetaTube-Client; otherwise retain only the safe generic label.
+		return "python-client"
 	case strings.Contains(lower, "curl"), strings.Contains(lower, "wget"):
 		return "cli"
 	case strings.Contains(lower, "mozilla"):

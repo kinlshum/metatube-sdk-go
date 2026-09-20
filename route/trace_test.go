@@ -79,6 +79,12 @@ func decodeData(t *testing.T, recorder *httptest.ResponseRecorder) map[string]an
 	return data
 }
 
+func TestGuessClientDoesNotMislabelGenericPythonAsWindmill(t *testing.T) {
+	assert.Equal(t, "python-client", guessClient("python-httpx/0.28.1"))
+	assert.Equal(t, "python-client", guessClient("Python-urllib/3.14"))
+	assert.Equal(t, "emby-plugin", guessClient("MetaTube/2026.910.1238.0"))
+}
+
 func TestTraceMiddlewareSeparatesVideoAndActor(t *testing.T) {
 	router, service := newTraceTestRouter(t, nil)
 
