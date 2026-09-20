@@ -5,6 +5,8 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Made every MetaTube Admin tab fluid-width so cards and tables automatically use the available browser width while retaining responsive side gutters.
+
 - Added a per-provider `Test` button beside each SETTINGS health indicator.
   It runs an immediate ad-hoc check, updates the shared health result and
   timestamp, and leaves the staggered hourly health-check rotation unchanged.
