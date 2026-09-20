@@ -43,6 +43,27 @@ func putProviderThrottles(app *engine.Engine) gin.HandlerFunc {
 	}
 }
 
+func getMovieSearchPolicy(app *engine.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"policy": app.MovieSearchPolicy(), "providers": app.ProviderThrottleSettings()})
+	}
+}
+
+func putMovieSearchPolicy(app *engine.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var value engine.MovieSearchPolicy
+		if err := c.ShouldBindJSON(&value); err != nil {
+			abortWithStatusMessage(c, http.StatusBadRequest, err)
+			return
+		}
+		if err := app.UpdateMovieSearchPolicy(value); err != nil {
+			abortWithStatusMessage(c, http.StatusBadRequest, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"saved": true, "policy": app.MovieSearchPolicy()})
+	}
+}
+
 func getAdminStats(app *engine.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		stats := app.Stats()

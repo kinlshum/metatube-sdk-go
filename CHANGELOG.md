@@ -5,6 +5,12 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Added an Admin SETTINGS policy for automatic movie-scan provider selection:
+  enable/disable ordered lookup, include or exclude providers, and change their
+  order without rebuilding the server. Ordered scans query sequentially and
+  stop at the first match; interactive Emby Identify continues to return the
+  full multi-provider candidate list.
+
 - Added a dedicated `metatube2` Emby service at `192.168.10.167:8080`, backed
   by its own PostgreSQL data and configuration/trace volume. The existing
   `.166` service remains available to JAV Master bulk workflows.

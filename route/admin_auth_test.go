@@ -32,6 +32,8 @@ func TestAdminRequiresTokenWhenConfigured(t *testing.T) {
 		{http.MethodGet, "/admin/api/stats"},
 		{http.MethodGet, "/admin/api/logs?limit=1"},
 		{http.MethodGet, "/admin/api/provider-throttles"},
+		{http.MethodGet, "/admin/api/movie-search-policy"},
+		{http.MethodPut, "/admin/api/movie-search-policy"},
 		{http.MethodGet, "/admin/api/trace-stats"},
 		{http.MethodGet, "/admin/api/traces"},
 		{http.MethodPost, "/admin/api/traces/start"},

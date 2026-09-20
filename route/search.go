@@ -22,6 +22,7 @@ type searchQuery struct {
 	Q        string `form:"q" binding:"required"`
 	Provider string `form:"provider"`
 	Fallback bool   `form:"fallback"`
+	Strategy string `form:"strategy"`
 }
 
 func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
@@ -59,6 +60,8 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 		case movieSearchType:
 			if isValidURL {
 				results, err = app.GetMovieInfoByProviderURLContext(ctx, query.Q, true /* always lazy */)
+			} else if searchAll && query.Strategy == "ordered" {
+				results, err = app.SearchMovieOrderedContext(ctx, query.Q, query.Fallback)
 			} else if searchAll {
 				results, err = app.SearchMovieAllContext(ctx, query.Q, query.Fallback)
 			} else {

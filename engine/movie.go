@@ -245,6 +245,35 @@ func (e *Engine) SearchMovieAllContext(ctx context.Context, keyword string, fall
 	return
 }
 
+// SearchMovieOrderedContext queries only the configured movie providers in
+// order and stops at the first provider that returns a result. It is intended
+// for unattended library scans; interactive Identify keeps using SearchMovieAll.
+func (e *Engine) SearchMovieOrderedContext(ctx context.Context, keyword string, fallback bool) ([]*model.MovieSearchResult, error) {
+	policy := e.MovieSearchPolicy()
+	if !policy.Enabled {
+		return e.SearchMovieAllContext(ctx, keyword, fallback)
+	}
+	var lastErr error
+	for _, name := range policy.Providers {
+		results, err := e.SearchMovieContext(ctx, keyword, name, false)
+		if err == nil && len(results) > 0 {
+			return results, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+	}
+	if fallback {
+		if results, err := e.searchMovieFromDB(ctx, keyword, nil, true); err == nil && len(results) > 0 {
+			return results, nil
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, mt.ErrInfoNotFound
+}
+
 func (e *Engine) getMovieInfoFromDB(ctx context.Context, provider mt.MovieProvider, id string) (*model.MovieInfo, error) {
 	info := &model.MovieInfo{}
 	err := e.db. // Exact match here.

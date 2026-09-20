@@ -87,6 +87,8 @@ func New(app *engine.Engine, v auth.Validator, options ...Option) *gin.Engine {
 	admin.GET("", getAdminPage())
 	admin.GET("/api/provider-throttles", getProviderThrottles(app))
 	admin.PUT("/api/provider-throttles", putProviderThrottles(app))
+	admin.GET("/api/movie-search-policy", getMovieSearchPolicy(app))
+	admin.PUT("/api/movie-search-policy", putMovieSearchPolicy(app))
 	admin.GET("/api/stats", getAdminStats(app))
 	admin.GET("/api/logs", getAdminLogs(logs))
 	admin.GET("/api/logs/search", getAdminLogSearch(logs))

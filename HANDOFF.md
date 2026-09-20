@@ -14,6 +14,34 @@ for every shipped build.
 
 Updated: 2026-09-19
 
+## Automatic scan provider policy (implemented, pending deployment)
+
+The SETTINGS page now manages a persistent automatic movie-scan policy stored
+at `/config/movie-search-policy.json` (override with
+`MOVIE_SEARCH_POLICY_CONFIG`). An operator can disable ordered lookup, enable
+it, exclude providers, and assign the remaining providers' order. The server
+validates provider names, canonicalizes case, removes duplicates, queries the
+selected providers sequentially, and stops on the first non-empty result.
+
+The behavior is intentionally selected by the client with
+`GET /v1/movies/search?...&strategy=ordered`. The companion Emby plugin uses
+that strategy only from `GetMetadata`, which is the unattended library-scan
+path. Its manual `GetSearchResults` Identify path remains unchanged and still
+queries every provider. Provider-specific requests are also unchanged. The
+server-side controls and the companion plugin must therefore be released and
+deployed together for automatic Emby scans to honor this policy.
+
+Admin API:
+
+- `GET /admin/api/movie-search-policy`
+- `PUT /admin/api/movie-search-policy` with
+  `{"enabled":true,"providers":["AVBASE","JAV321"]}`
+
+Relevant code: `engine/search_policy.go`, `engine/movie.go`,
+`route/search.go`, `route/admin.go`, and `route/admin.html`. Companion plugin:
+`Jellyfin.Plugin.MetaTube/ApiClient.cs` and
+`Jellyfin.Plugin.MetaTube/Providers/MovieProvider.cs` in the Homelab repository.
+
 ## Next coding handoff for DeepSeek/Cline
 
 The approved implementation specification is

@@ -45,6 +45,7 @@ type Engine struct {
 	actorHostProviders *maps.CaseInsensitiveMap[[]mt.ActorProvider]
 	movieHostProviders *maps.CaseInsensitiveMap[[]mt.MovieProvider]
 	providerThrottle   *ProviderThrottle
+	movieSearchPolicy  *movieSearchPolicyStore
 	metrics            *engineMetrics
 	health             *providerHealthMonitor
 	traces             *trace.Service
@@ -63,6 +64,7 @@ func New(db *gorm.DB, opts ...Option) *Engine {
 		actorHostProviders:   maps.NewCaseInsensitiveMap[[]mt.ActorProvider](),
 		movieHostProviders:   maps.NewCaseInsensitiveMap[[]mt.MovieProvider](),
 		providerThrottle:     newProviderThrottle(),
+		movieSearchPolicy:    newMovieSearchPolicyStore(),
 		metrics:              newEngineMetrics(),
 		health:               newProviderHealthMonitor(),
 		traces:               trace.Disabled(),
