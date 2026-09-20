@@ -910,7 +910,10 @@ The detailed, implementation-ready specification is
   fallback, HTTP 429, timeout, and solver indicators; and
 - provider health updated by real lookup outcomes so successful traffic clears
   a pending/failed light immediately, while scheduled probes remain available
-  for inactive providers.
+  for inactive providers; and
+- selective JAVDB lookup: excluded from automatic Emby scans and normal
+  Identify by default, but available through an explicit targeted manual action
+  or optional bounded fallback.
 
 Acceptance also requires a fresh GitHub clone, remote synchronization before
 editing and committing, tests, push-before-deploy, and updates to the changelog,

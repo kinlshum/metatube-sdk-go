@@ -2,10 +2,11 @@
 
 Audience: DeepSeek/Cline implementer. Status: design approved; implementation pending.
 
-This handoff covers three Admin gaps: identifying the exact error inside an
+This handoff covers four Admin/plugin gaps: identifying the exact error inside an
 expanded enrichment run, showing genuine rolling five-minute provider
 statistics beside each throttle setting, and allowing real provider traffic to
-refresh provider health immediately.
+refresh provider health immediately, while keeping JAVDB out of automatic
+library scans unless an operator explicitly requests it.
 
 ## Status (updated 2026-09-19, branch `codex/mdcng-fc2cmadb-providers`)
 
@@ -26,7 +27,12 @@ refresh provider health immediately.
 - **B. Rolling `LAST 5 MIN` statistics on SETTINGS — pending.** The design,
   backend contract (`provider_windows.five_minutes`), UI, and test requirements
   in section B below are unchanged.
-- **C. Workflow — in force.** This work started from a fresh clone
+- **C. Lookup-driven provider health — pending.** The state and probe contract
+  remains as specified below.
+- **D. Selective JAVDB lookup policy — approved, pending.** Automatic scans and
+  normal Identify searches exclude JAVDB; an explicit targeted manual lookup
+  remains available.
+- **E. Workflow — in force.** This work started from a fresh clone
   (`../metatube-admin-next-f261f67`) synchronized to `f261f671…`, and every
   release updates the changelog, release log, and deployment log.
 
@@ -171,7 +177,77 @@ failures, recovery, caller cancellation, stale observations, out-of-order probe
 completion, initial-sweep concurrency limits, and compatibility of the existing
 health JSON fields.
 
-## D. Mandatory repository, release, and deployment workflow
+## D. Selective JAVDB policy for Emby and other clients
+
+JAVDB must not participate in automatic Emby library scans or ordinary
+all-provider Identify searches by default. It is a slow, protected fallback,
+not a mandatory barrier before a fast exact match can be returned.
+
+### Server API
+
+- Extend movie search with an explicit exclusion, for example
+  `/v1/movies/search?q=ABC-123&exclude=JavDB`.
+- Preserve targeted lookup with `provider=JavDB`; it must invoke only JAVDB.
+- Accept a repeatable or comma-separated exclusion list, normalize provider
+  names case-insensitively, reject unknown/conflicting policy values clearly,
+  and include the effective provider policy in traces.
+- Keep existing clients compatible when `exclude` is absent, but update known
+  bulk/automatic clients to send the safer policy.
+- Add an optional staged mode: query fast providers first and invoke JAVDB only
+  when no acceptable exact match exists. It must have a bounded deadline and
+  must not delay a result already accepted with high confidence.
+
+### Emby plugin behavior
+
+- Add `Use JAVDB during automatic library scans`, default **Off**.
+- Add `Use JAVDB in normal Identify search`, default **Off**.
+- Add `Allow targeted JAVDB manual Identify`, default **On**.
+- Add `Use JAVDB only after fast providers return no exact match`, default
+  **Off** for large libraries.
+- When refreshing an already identified item, use its stored provider directly.
+  A JAVDB-backed item may refresh through JAVDB; AVBASE or other provider IDs
+  must not trigger an unrelated JAVDB search.
+
+The current Emby `IRemoteMetadataProvider` entry point uses the same
+`GetSearchResults(MovieInfo, CancellationToken)` method for automatic and manual
+searches and does not expose a trustworthy invocation-mode flag. Do not infer
+the mode from timing, path shape, cancellation, or other heuristics.
+
+Do not inject or patch Emby Web merely to add a native `Refresh Metadata
+without JAVDB` submenu. That approach is brittle across Emby upgrades. Prefer:
+
+1. a separately registered, clearly named targeted provider/action such as
+   `MetaTube — Identify with JAVDB`, if Emby's supported provider registration
+   produces a clean manual workflow; or
+2. a targeted `Identify with JAVDB` action in `emby-custom-app` that searches
+   JAVDB explicitly and applies the selected match through supported Emby APIs.
+
+Normal manual Identify should return fast-provider results promptly, with the
+targeted JAVDB action available only when those results are insufficient.
+
+### Queue isolation and completion rules
+
+- Automatic/bulk traffic and interactive manual lookups require separate
+  bounded queues or weighted fairness. Bulk work must never starve Emby.
+- All throttle waits must honor cancellation and deadlines. Remove a canceled
+  waiter promptly rather than allowing abandoned work to consume a later slot.
+- Deduplicate identical in-flight provider/catalog requests.
+- All-provider searches must support early completion after a confident exact
+  match; they must not wait for every slow provider.
+- Record client, invocation policy (`automatic`, `normal_identify`,
+  `targeted_javdb`, `fallback`), queue time, selected provider, and cancellation
+  in trace events and five-minute statistics.
+
+Tests must cover default exclusion, explicit targeted JAVDB, stored-provider
+refresh, staged fallback, exact-match early return, cancellation while queued,
+bulk versus interactive fairness, duplicate coalescing, backward-compatible
+requests without the new parameter, and both plugin/manual-action workflows.
+
+For the 57,016-item Movie AV library, acceptance requires that a scan can add
+and identify new files without issuing JAVDB searches, while an operator can
+still request an individual JAVDB match manually.
+
+## E. Mandatory repository, release, and deployment workflow
 
 Every AI or human implementer must follow this sequence:
 
@@ -202,6 +278,7 @@ Every AI or human implementer must follow this sequence:
 
 - Backend rolling-window metrics and compatible API response.
 - Lookup-driven provider health with bounded startup/manual probes.
+- Selective JAVDB server policy and Emby/manual-client controls.
 - SETTINGS UI column/card and trace error index/focus behavior.
 - Unit, API, and browser regression tests.
 - Updated handoff, changelog, release log, and deployment log.

@@ -27,6 +27,9 @@ priorities are:
 3. Update provider health from real lookup outcomes, including correct
    browser-fallback semantics, provenance, bounded startup checks, and explicit
    pending/degraded states.
+4. Keep JAVDB out of automatic Emby scans and normal Identify by default while
+   preserving an explicit targeted manual JAVDB workflow. Do this through
+   supported server/plugin APIs, not an injected Emby Web submenu.
 
 The specification also defines the mandatory delivery process. Start from a
 fresh clone of the GitHub repository, synchronize and verify the remote branch
