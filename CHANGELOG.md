@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Unified Newer, Older, Delete selected, Refresh, Pause, Auto-follow, rows per
+  page, and the page count into synchronized single-line toolbars above and
+  below both enrichment trace tables.
+
 - Added selectable 100, 200, 300, 400, 500, and 1000-row page sizes to both
   enrichment trace tabs; changing the size returns to the newest page.
 

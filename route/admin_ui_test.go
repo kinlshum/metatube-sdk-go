@@ -45,6 +45,12 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		`id="traceVideoPrev"`, `id="traceVideoNext"`, `id="traceVideoPager"`,
 		`id="traceActorPrev"`, `id="traceActorNext"`, `id="traceActorPager"`,
 		`id="traceVideoSize"`, `id="traceActorSize"`,
+		`id="traceVideoRefreshBottom"`, `id="traceVideoPauseBottom"`, `id="traceVideoFollowBottom"`,
+		`id="traceActorRefreshBottom"`, `id="traceActorPauseBottom"`, `id="traceActorFollowBottom"`,
+		`id="traceVideoDeleteSelectedBottom"`, `id="traceActorDeleteSelectedBottom"`,
+		`id="traceVideoPrevBottom"`, `id="traceVideoNextBottom"`, `id="traceVideoPagerBottom"`,
+		`id="traceActorPrevBottom"`, `id="traceActorNextBottom"`, `id="traceActorPagerBottom"`,
+		`id="traceVideoSizeBottom"`, `id="traceActorSizeBottom"`,
 		`id="traceVideoRows"`, `id="traceActorRows"`,
 		`id="traceVideoDrawer"`, `id="traceActorDrawer"`,
 		`id="traceVideoDrawerAnchor"`, `id="traceActorDrawerAnchor"`,
@@ -74,8 +80,12 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		"following must keep the newest page selected")
 	assert.Contains(t, body, "if(state.open&&(follow||manual))openTrace(kind,state.open,false)",
 		"following (and a manual refresh) must refresh the open drawer")
-	assert.Contains(t, body, "traceEl(kind,'Follow').addEventListener('change'",
-		"toggling follow must take effect immediately")
+	assert.Contains(t, body, "traceControls(kind,'Follow')",
+		"both follow checkboxes must be synchronized and take effect immediately")
+	assert.Contains(t, body, "traceControls(kind,'Pause')",
+		"both pause buttons must share the same state")
+	assert.Contains(t, body, "traceControls(kind,'Size')",
+		"both page-size selectors must share the same state")
 	assert.Contains(t, body, "const previousScroll=scroll?0:drawer.scrollTop;",
 		"a live drawer refresh must preserve the reader's scroll position")
 	assert.Contains(t, body, "drawer.scrollTop=previousScroll")

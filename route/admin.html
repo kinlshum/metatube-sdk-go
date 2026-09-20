@@ -53,6 +53,7 @@
     @media(max-width:760px){.error-entry{grid-template-columns:auto 1fr}.error-entry button{grid-column:2/-1;justify-self:start}}
     .field-changes th,.field-changes td{padding:4px 8px;font-size:12px;border-bottom:1px solid #233c30}
     .pager{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}.pager .spacer{flex:1}.pager button{padding:7px 12px}
+    .trace-actions{display:flex;flex-wrap:nowrap;align-items:center;gap:9px;padding:10px 18px;overflow-x:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#14291f}.trace-actions .spacer{flex:1;min-width:14px}.trace-actions label{display:flex;align-items:center;gap:5px;white-space:nowrap}.trace-actions button{white-space:nowrap}
     .mono{font:12px/1.5 ui-monospace,SFMono-Regular,monospace;word-break:break-all}
     .ingestion-strip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;background:#122019;border-bottom:1px solid var(--line)}
     .ingestion-strip .stat{color:var(--muted);font-size:12px}.ingestion-strip .stat b{color:var(--text);font-weight:700}
@@ -136,15 +137,11 @@
       <select id="traceVideoComponent"><option value="">Any stage</option><option value="client">client</option><option value="metatube">metatube</option><option value="cache">cache</option><option value="database">database</option><option value="throttle">throttle</option><option value="provider">provider</option><option value="flaresolverr">flaresolverr</option><option value="translation">translation</option><option value="windmill">windmill</option><option value="emby">emby</option></select>
       <select id="traceVideoSince"><option value="">Any time</option><option value="3600">Last hour</option><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option></select>
       <label class="note"><input type="checkbox" id="traceVideoErrors"> Errors only</label>
-      <span class="spacer"></span>
-      <button id="traceVideoDeleteSelected" class="danger" disabled>Delete selected</button>
-      <button id="traceVideoRefresh" class="tab">Refresh</button>
-      <button id="traceVideoPause" class="tab">Pause</button>
-      <label class="note"><input type="checkbox" id="traceVideoFollow" checked> Auto-follow</label>
     </div>
     <div id="traceVideoStatusLine" class="note" style="padding:10px 18px">Loading traces…</div>
+    <div class="trace-actions"><button id="traceVideoPrev" class="tab">Newer</button><button id="traceVideoNext" class="tab">Older</button><button id="traceVideoDeleteSelected" class="danger" disabled>Delete selected</button><button id="traceVideoRefresh" class="tab">Refresh</button><button id="traceVideoPause" class="tab">Pause</button><label class="note"><input type="checkbox" id="traceVideoFollow" checked> Auto-follow</label><span class="spacer"></span><label class="note">Rows per page <select id="traceVideoSize"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>1000</option></select></label><span id="traceVideoPager" class="note"></span></div>
     <div class="scroll-table"><table id="traceVideoTable"><thead><tr><th class="trace-select"><input type="checkbox" id="traceVideoSelectAll" aria-label="Select all visible video traces"></th><th>Time</th><th>Item</th><th>Operation</th><th>Client</th><th>Provider</th><th>Status</th><th>Duration</th><th>Windmill</th><th>Emby</th></tr></thead><tbody id="traceVideoRows"></tbody></table></div>
-    <div class="pager"><button id="traceVideoPrev" class="tab">Newer</button><button id="traceVideoNext" class="tab">Older</button><span class="spacer"></span><label class="note">Rows per page <select id="traceVideoSize"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>1000</option></select></label><span id="traceVideoPager" class="note"></span></div>
+    <div class="trace-actions"><button id="traceVideoPrevBottom" class="tab">Newer</button><button id="traceVideoNextBottom" class="tab">Older</button><button id="traceVideoDeleteSelectedBottom" class="danger" disabled>Delete selected</button><button id="traceVideoRefreshBottom" class="tab">Refresh</button><button id="traceVideoPauseBottom" class="tab">Pause</button><label class="note"><input type="checkbox" id="traceVideoFollowBottom" checked> Auto-follow</label><span class="spacer"></span><label class="note">Rows per page <select id="traceVideoSizeBottom"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>1000</option></select></label><span id="traceVideoPagerBottom" class="note"></span></div>
     <div id="traceVideoDrawerAnchor" hidden><div id="traceVideoDrawer"></div></div>
   </section>
   <section id="traceActorPage" class="card page hidden">
@@ -158,15 +155,11 @@
       <select id="traceActorComponent"><option value="">Any stage</option><option value="client">client</option><option value="metatube">metatube</option><option value="cache">cache</option><option value="database">database</option><option value="throttle">throttle</option><option value="provider">provider</option><option value="flaresolverr">flaresolverr</option><option value="translation">translation</option><option value="windmill">windmill</option><option value="emby">emby</option></select>
       <select id="traceActorSince"><option value="">Any time</option><option value="3600">Last hour</option><option value="86400">Last 24 hours</option><option value="604800">Last 7 days</option></select>
       <label class="note"><input type="checkbox" id="traceActorErrors"> Errors only</label>
-      <span class="spacer"></span>
-      <button id="traceActorDeleteSelected" class="danger" disabled>Delete selected</button>
-      <button id="traceActorRefresh" class="tab">Refresh</button>
-      <button id="traceActorPause" class="tab">Pause</button>
-      <label class="note"><input type="checkbox" id="traceActorFollow" checked> Auto-follow</label>
     </div>
     <div id="traceActorStatusLine" class="note" style="padding:10px 18px">Loading traces…</div>
+    <div class="trace-actions"><button id="traceActorPrev" class="tab">Newer</button><button id="traceActorNext" class="tab">Older</button><button id="traceActorDeleteSelected" class="danger" disabled>Delete selected</button><button id="traceActorRefresh" class="tab">Refresh</button><button id="traceActorPause" class="tab">Pause</button><label class="note"><input type="checkbox" id="traceActorFollow" checked> Auto-follow</label><span class="spacer"></span><label class="note">Rows per page <select id="traceActorSize"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>1000</option></select></label><span id="traceActorPager" class="note"></span></div>
     <div class="scroll-table"><table id="traceActorTable"><thead><tr><th class="trace-select"><input type="checkbox" id="traceActorSelectAll" aria-label="Select all visible actor traces"></th><th>Time</th><th>Item</th><th>Operation</th><th>Client</th><th>Provider</th><th>Status</th><th>Duration</th><th>Windmill</th><th>Emby</th></tr></thead><tbody id="traceActorRows"></tbody></table></div>
-    <div class="pager"><button id="traceActorPrev" class="tab">Newer</button><button id="traceActorNext" class="tab">Older</button><span class="spacer"></span><label class="note">Rows per page <select id="traceActorSize"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>1000</option></select></label><span id="traceActorPager" class="note"></span></div>
+    <div class="trace-actions"><button id="traceActorPrevBottom" class="tab">Newer</button><button id="traceActorNextBottom" class="tab">Older</button><button id="traceActorDeleteSelectedBottom" class="danger" disabled>Delete selected</button><button id="traceActorRefreshBottom" class="tab">Refresh</button><button id="traceActorPauseBottom" class="tab">Pause</button><label class="note"><input type="checkbox" id="traceActorFollowBottom" checked> Auto-follow</label><span class="spacer"></span><label class="note">Rows per page <select id="traceActorSizeBottom"><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>1000</option></select></label><span id="traceActorPagerBottom" class="note"></span></div>
     <div id="traceActorDrawerAnchor" hidden><div id="traceActorDrawer"></div></div>
   </section>
 </main>
@@ -207,6 +200,7 @@
   const TRACE_STATUS_META={succeeded:['ok','✔'],partial:['warn','◐'],running:['warn','◐'],queued:['idle','•'],failed:['bad','✖'],cancelled:['idle','⊘']};
   const tracePrefix=kind=>kind==='actor'?'traceActor':'traceVideo';
   const traceEl=(kind,suffix)=>document.querySelector(`#${tracePrefix(kind)}${suffix}`);
+  const traceControls=(kind,suffix)=>[traceEl(kind,suffix),traceEl(kind,suffix+'Bottom')];
   const traceMs=v=>`${Number(v||0).toFixed(Number(v)>=1000?0:1)} ms`;
   function traceStatusBadge(status){const meta=TRACE_STATUS_META[status]||['idle','•'];return `<span class="badge ${meta[0]}"><span aria-hidden="true">${meta[1]}</span>${esc(status||'unknown')}</span>`}
   function traceQuery(kind){const params=new URLSearchParams(),state=traceState[kind];params.set('kind',kind);
@@ -242,7 +236,7 @@
     const detail=document.createElement('tr');detail.className='trace-detail-row';detail.dataset.detailFor=row.dataset.trace;
     const cell=document.createElement('td');cell.colSpan=10;cell.appendChild(drawer);detail.appendChild(cell);row.after(detail);row.classList.add('trace-selected')}
   function updateTraceSelection(kind){const state=traceState[kind],visible=state.rows.map(row=>row.trace_id),selectedVisible=visible.filter(id=>state.selected.has(id)).length,all=visible.length>0&&selectedVisible===visible.length,selectAll=traceEl(kind,'SelectAll'),button=traceEl(kind,'DeleteSelected');
-    selectAll.checked=all;selectAll.indeterminate=selectedVisible>0&&!all;button.disabled=state.selected.size===0;button.textContent=state.selected.size?`Delete selected (${state.selected.size})`:'Delete selected';
+    selectAll.checked=all;selectAll.indeterminate=selectedVisible>0&&!all;for(const button of traceControls(kind,'DeleteSelected')){button.disabled=state.selected.size===0;button.textContent=state.selected.size?`Delete selected (${state.selected.size})`:'Delete selected'};
     traceEl(kind,'Rows').querySelectorAll('tr[data-trace]').forEach(row=>row.classList.toggle('trace-marked',state.selected.has(row.dataset.trace)))}
   function selectTraceRow(kind,id,{toggle=false,range=false}={}){const state=traceState[kind],visible=state.rows.map(row=>row.trace_id);
     if(range&&state.selectionAnchor&&visible.includes(state.selectionAnchor)){const start=visible.indexOf(state.selectionAnchor),end=visible.indexOf(id),from=Math.min(start,end),to=Math.max(start,end);for(const traceId of visible.slice(from,to+1))state.selected.add(traceId)}
@@ -253,9 +247,10 @@
     resetTraceDrawerPlacement(kind);
     traceEl(kind,'Rows').innerHTML=traceRowsHtml(kind);
     const from=state.total?state.offset+1:0,to=Math.min(state.offset+state.rows.length,state.total);
-    traceEl(kind,'Pager').textContent=`${from}–${to} of ${state.total}`;
-    traceEl(kind,'Prev').disabled=state.offset<=0;
-    traceEl(kind,'Next').disabled=state.offset+state.limit>=state.total;
+    for(const pager of traceControls(kind,'Pager'))pager.textContent=`${from}–${to} of ${state.total}`;
+    for(const previous of traceControls(kind,'Prev'))previous.disabled=state.offset<=0;
+    for(const next of traceControls(kind,'Next'))next.disabled=state.offset+state.limit>=state.total;
+    for(const size of traceControls(kind,'Size'))size.value=String(state.limit);
     updateTraceSelection(kind);
     if(state.open){const row=[...traceEl(kind,'Rows').querySelectorAll('tr[data-trace]')].find(item=>item.dataset.trace===state.open);if(row)placeTraceDrawer(kind,row)}}
   async function refreshTraces(kind){const state=traceState[kind];
@@ -441,7 +436,7 @@
     catch(e){traceEl(kind,'StatusLine').className='note error';traceEl(kind,'StatusLine').textContent=e.message}}
   async function deleteSelectedTraces(kind){const state=traceState[kind],ids=[...state.selected];if(!ids.length)return;
     if(!confirm(`Delete ${ids.length} selected trace${ids.length===1?'':'s'} and all of their events? This cannot be undone.`))return;
-    const button=traceEl(kind,'DeleteSelected');button.disabled=true;button.textContent='Deleting…';let deleted=0,failed=0;
+    for(const button of traceControls(kind,'DeleteSelected')){button.disabled=true;button.textContent='Deleting…'}let deleted=0,failed=0;
     for(const id of ids){try{const r=await fetch('/admin/api/traces/'+encodeURIComponent(id),{method:'DELETE'});if(!r.ok)throw Error(`HTTP ${r.status}`);state.selected.delete(id);deleted++;if(state.open===id)closeTraceDrawer(kind)}catch(e){failed++}}
     traceEl(kind,'StatusLine').className=failed?'note error':'note';traceEl(kind,'StatusLine').textContent=`Deleted ${deleted} trace${deleted===1?'':'s'}${failed?`; ${failed} failed`:''}.`;state.manual=true;await refreshTraces(kind)}
   ['video','actor'].forEach(kind=>{
@@ -453,15 +448,15 @@
     traceEl(kind,'Since').addEventListener('change',()=>traceFilterChanged(kind));
     traceEl(kind,'Errors').addEventListener('change',()=>traceFilterChanged(kind));
     traceEl(kind,'SelectAll').addEventListener('change',event=>{const state=traceState[kind];for(const row of state.rows){if(event.target.checked)state.selected.add(row.trace_id);else state.selected.delete(row.trace_id)}drawTraces(kind)});
-    traceEl(kind,'DeleteSelected').addEventListener('click',()=>deleteSelectedTraces(kind));
-    traceEl(kind,'Size').addEventListener('change',event=>{const state=traceState[kind];state.limit=Number(event.target.value);state.offset=0;state.manual=true;refreshTraces(kind)});
-    traceEl(kind,'Refresh').addEventListener('click',()=>{traceState[kind].manual=true;refreshTraces(kind)});
-    traceEl(kind,'Prev').addEventListener('click',()=>{const state=traceState[kind];state.offset=Math.max(0,state.offset-state.limit);state.manual=true;refreshTraces(kind)});
-    traceEl(kind,'Next').addEventListener('click',()=>{const state=traceState[kind];state.offset+=state.limit;state.manual=true;refreshTraces(kind)});
-    traceEl(kind,'Pause').addEventListener('click',event=>{const state=traceState[kind];state.paused=!state.paused;event.target.textContent=state.paused?'Resume':'Pause';event.target.classList.toggle('on',state.paused);if(!state.paused){state.manual=true;refreshTraces(kind)}});
+    for(const button of traceControls(kind,'DeleteSelected'))button.addEventListener('click',()=>deleteSelectedTraces(kind));
+    for(const size of traceControls(kind,'Size'))size.addEventListener('change',event=>{const state=traceState[kind];state.limit=Number(event.target.value);state.offset=0;for(const peer of traceControls(kind,'Size'))peer.value=event.target.value;state.manual=true;refreshTraces(kind)});
+    for(const button of traceControls(kind,'Refresh'))button.addEventListener('click',()=>{traceState[kind].manual=true;refreshTraces(kind)});
+    for(const button of traceControls(kind,'Prev'))button.addEventListener('click',()=>{const state=traceState[kind];state.offset=Math.max(0,state.offset-state.limit);state.manual=true;refreshTraces(kind)});
+    for(const button of traceControls(kind,'Next'))button.addEventListener('click',()=>{const state=traceState[kind];state.offset+=state.limit;state.manual=true;refreshTraces(kind)});
+    for(const button of traceControls(kind,'Pause'))button.addEventListener('click',()=>{const state=traceState[kind];state.paused=!state.paused;for(const peer of traceControls(kind,'Pause')){peer.textContent=state.paused?'Resume':'Pause';peer.classList.toggle('on',state.paused)}if(!state.paused){state.manual=true;refreshTraces(kind)}});
     // Turning auto-follow on jumps straight back to the newest page and refreshes
     // the open drawer; turning it off leaves everything where it is.
-    traceEl(kind,'Follow').addEventListener('change',()=>{const state=traceState[kind];if(traceEl(kind,'Follow').checked){state.offset=0;state.manual=true;refreshTraces(kind)}});
+    for(const follow of traceControls(kind,'Follow'))follow.addEventListener('change',event=>{const state=traceState[kind];for(const peer of traceControls(kind,'Follow'))peer.checked=event.target.checked;if(event.target.checked){state.offset=0;state.manual=true;refreshTraces(kind)}});
     traceEl(kind,'Rows').addEventListener('click',event=>{const checkbox=event.target.closest('[data-select-trace]');if(checkbox){selectTraceRow(kind,checkbox.dataset.selectTrace,{toggle:!event.shiftKey,range:event.shiftKey});return}const row=event.target.closest('tr[data-trace]');if(!row)return;
       if(event.ctrlKey||event.metaKey||event.shiftKey){selectTraceRow(kind,row.dataset.trace,{toggle:event.ctrlKey||event.metaKey,range:event.shiftKey});return}
       if(traceState[kind].open===row.dataset.trace){closeTraceDrawer(kind);return}
