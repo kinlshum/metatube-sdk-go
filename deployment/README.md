@@ -12,6 +12,12 @@ MetaTube remains available at `http://192.168.10.166:8080`. FlareSolverr is
 available at port `8191` for diagnostics, while provider requests use the
 private Compose network.
 
+The dedicated Emby instance is available at `http://192.168.10.167:8080`
+(`metatube2`). It has its own PostgreSQL database and `/config` volume so JAV
+Master bulk enrichment cannot consume its request queue, metrics, throttles, or
+trace capacity. It reuses the provider bridge and FlareSolverr infrastructure;
+the original `.166` instance remains the JAV Master endpoint.
+
 The existing MetaTube configuration and PostgreSQL database use their current
 Kraken bind mounts and survive stack recreation.
 

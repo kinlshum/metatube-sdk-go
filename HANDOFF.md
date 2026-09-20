@@ -80,23 +80,6 @@ it created.
 Continue from the working branch and merge the entire branch, not only the most
 recent documentation commit.
 
-## Selective JAVDB implementation status
-
-The server implementation is present on this branch: `/v1/movies/search`
-accepts `exclude=JavDB` (or a comma-separated list), validates every excluded
-provider, rejects a provider that is both selected and excluded, and omits the
-excluded providers only from all-provider fan-out. Explicit
-`provider=JavDB` requests and exact info requests are unchanged.
-
-The matching Emby plugin edits were prepared in the sibling working directory
-`../plugin`, but that directory is **not part of this repository's Git root**.
-Do not claim the automatic-scan fix is deployed merely because the server is
-deployed. Before production rollout, put those plugin changes in their proper
-version-controlled repository, build `Release.Emby`, install the resulting
-`MetaTube.dll`, restart Emby, and verify a broad scan sends
-`exclude=JavDB`. Existing items with a stored JAVDB provider ID must still use
-the exact JAVDB info path.
-
 ## Deployment
 
 - MetaTube Admin: `http://192.168.10.166:8080/admin`

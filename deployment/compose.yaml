@@ -19,6 +19,24 @@ services:
     networks:
       - metatube_internal
 
+  metatube2-postgres:
+    image: postgres:15-alpine
+    container_name: metatube2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: metatube
+      POSTGRES_USER: metatube
+      POSTGRES_PASSWORD: metatube
+    volumes:
+      - /mnt/user/appdata/metatube2/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metatube -d metatube"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - metatube_internal
+
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: metatube-flaresolverr
@@ -42,8 +60,20 @@ services:
       MDC_URL: http://192.168.10.170:9208
       HOST_QUERY_ROOT: /host-downloads/.metatube-provider
       MDC_QUERY_ROOT: /downloads_kraken/.metatube-provider
+      BRIDGE_TOKEN_FILE: /run/secrets/bridge_token
+      ACTOR_SUB_INI_PATH: /emby-config/metadata/temp/JAV-ACTOR-SUB.ini
+      METATUBE_CONFIG_PATH: /emby-config/plugins/configurations/MetaTube.json
+      SUBSTITUTION_STATE_PATH: /state/actor-substitutions.json
+      SUBSTITUTION_BACKUP_DIR: /state/backups
     volumes:
       - /mnt/user/downloads:/host-downloads
+      - /mnt/cache_nvme_apps/appdata/EmbyServer/metadata/temp:/emby-config/metadata/temp
+      - /mnt/cache_nvme_apps/appdata/EmbyServer/plugins/configurations:/emby-config/plugins/configurations
+      - ./provider-bridge/state:/state
+    secrets:
+      - bridge_token
+    ports:
+      - "9210:9210"
     depends_on:
       - flaresolverr
     networks:
@@ -82,10 +112,10 @@ services:
       # as Docker secrets below and are never placed in the environment, a
       # response, or a log. An empty secret file keeps the features visible in
       # the admin UI while reporting "not configured".
-      METATUBE_GRAYLOG_ENABLED: ${METATUBE_GRAYLOG_ENABLED:-false}
-      METATUBE_GRAYLOG_API_URL: ${METATUBE_GRAYLOG_API_URL:-https://graylog1.madtechinc.com/api}
-      METATUBE_GRAYLOG_EXTERNAL_URL: ${METATUBE_GRAYLOG_EXTERNAL_URL:-https://graylog1.madtechinc.com}
-      METATUBE_GRAYLOG_STREAM_ID: ${METATUBE_GRAYLOG_STREAM_ID:-}
+      METATUBE_GRAYLOG_ENABLED: "true"
+      METATUBE_GRAYLOG_API_URL: https://graylog1.madtechinc.com/api
+      METATUBE_GRAYLOG_EXTERNAL_URL: https://graylog1.madtechinc.com
+      METATUBE_GRAYLOG_STREAM_ID: "000000000000000000000001"
       METATUBE_GRAYLOG_TOKEN_FILE: /run/secrets/graylog_search_token
       METATUBE_GRAYLOG_TIMEOUT_SECONDS: "5"
       METATUBE_GRAYLOG_MAX_RESULTS: "200"
@@ -95,14 +125,14 @@ services:
       # the reverse proxy and the Emby report. Use a dedicated input (for example
       # a MetaTube GELF HTTP input on port 12203) so its token can be rotated
       # without touching the shared application or Vector inputs.
-      METATUBE_GELF_ENABLED: ${METATUBE_GELF_ENABLED:-false}
-      METATUBE_GELF_URL: ${METATUBE_GELF_URL:-http://192.168.10.155:12203/gelf}
+      METATUBE_GELF_ENABLED: "true"
+      METATUBE_GELF_URL: http://192.168.10.155:12203/gelf
       METATUBE_GELF_TOKEN_FILE: /run/secrets/gelf_ingest_token
       METATUBE_GELF_APPLICATION: metatube
       METATUBE_GELF_SERVICE: metatube-server
-      METATUBE_GELF_SERVER: ${METATUBE_GELF_SERVER:-kraken}
-      METATUBE_GELF_NODE: ${METATUBE_GELF_NODE:-kraken-docker}
-      METATUBE_GELF_ENVIRONMENT: ${METATUBE_GELF_ENVIRONMENT:-homelab}
+      METATUBE_GELF_SERVER: kraken
+      METATUBE_GELF_NODE: kraken-docker
+      METATUBE_GELF_ENVIRONMENT: homelab
       METATUBE_GELF_TIMEOUT_SECONDS: "3"
       METATUBE_GELF_QUEUE: "512"
       METATUBE_GELF_MAX_RETRIES: "2"
@@ -138,6 +168,107 @@ services:
       br0:
         ipv4_address: 192.168.10.166
 
+  # Dedicated Emby metadata service. Keep its database, configuration,
+  # throttles, metrics and trace store isolated from JAV Master's bulk work.
+  # Emby should use this LAN address; the existing metatube service remains the
+  # JAV Master endpoint.
+  metatube2:
+    image: kinlshum/metatube-server-providers:emby
+    build:
+      context: https://github.com/kinlshum/metatube-sdk-go.git#codex/mdcng-fc2cmadb-providers
+    container_name: metatube2
+    restart: unless-stopped
+    environment:
+      GIN_MODE: release
+      PORT: 8080
+      TOKEN: ${METATUBE2_TOKEN:-}
+      METATUBE_ADMIN_TOKEN: ${METATUBE2_ADMIN_TOKEN:-}
+      METATUBE_TRUSTED_PROXIES: ${METATUBE_TRUSTED_PROXIES-192.168.10.172,192.168.10.1}
+      DSN: postgres://metatube:metatube@metatube2-postgres:5432/metatube?sslmode=disable
+      DB_AUTO_MIGRATE: "1"
+      DB_PREPARED_STMT: "1"
+      METATUBE_PROVIDER_BRIDGE_URL: http://provider-bridge:9210
+      METATUBE_TRACE_ENABLED: "true"
+      METATUBE_TRACE_DSN: /config/traces.db
+      METATUBE_TRACE_RETENTION_DAYS: "30"
+      METATUBE_TRACE_MAX_RUNS: "10000"
+      METATUBE_TRACE_MAX_EVENTS_PER_RUN: "500"
+      METATUBE_GRAYLOG_ENABLED: "true"
+      METATUBE_GRAYLOG_API_URL: https://graylog1.madtechinc.com/api
+      METATUBE_GRAYLOG_EXTERNAL_URL: https://graylog1.madtechinc.com
+      METATUBE_GRAYLOG_STREAM_ID: "000000000000000000000001"
+      METATUBE_GRAYLOG_TOKEN_FILE: /run/secrets/graylog_search_token
+      METATUBE_GRAYLOG_TIMEOUT_SECONDS: "5"
+      METATUBE_GRAYLOG_MAX_RESULTS: "200"
+      METATUBE_GRAYLOG_MAX_RANGE_HOURS: "24"
+      METATUBE_GELF_ENABLED: "true"
+      METATUBE_GELF_URL: http://192.168.10.155:12203/gelf
+      METATUBE_GELF_TOKEN_FILE: /run/secrets/gelf_ingest_token
+      METATUBE_GELF_APPLICATION: metatube2
+      METATUBE_GELF_SERVICE: metatube-emby
+      METATUBE_GELF_SERVER: kraken
+      METATUBE_GELF_NODE: kraken-docker
+      METATUBE_GELF_ENVIRONMENT: homelab
+      METATUBE_GELF_TIMEOUT_SECONDS: "3"
+      METATUBE_GELF_QUEUE: "512"
+      METATUBE_GELF_MAX_RETRIES: "2"
+      MT_ACTOR_PROVIDER_AV_LEAGUE__PRIORITY: "1003"
+      MT_ACTOR_PROVIDER_XSLIST__PRIORITY: "1002"
+      MT_ACTOR_PROVIDER_MINNANO_AV__PRIORITY: "1001"
+      MT_ACTOR_PROVIDER_GFRIENDS__PRIORITY: "1000"
+      MT_MOVIE_PROVIDER_AVE__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_DUGA__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_FALENO__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_FANZA__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_FC2PPVDB__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_MGS__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_PCOLLE__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_SOD__PRIORITY: "0"
+      MT_ACTOR_PROVIDER_THEPORNDBACTOR__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_THEPORNDBMOVIE__PRIORITY: "0"
+      MT_MOVIE_PROVIDER_THEPORNDBSCENE__PRIORITY: "0"
+    volumes:
+      - /mnt/cache_nvme_apps/appdata/metatube2-server:/config
+    secrets:
+      - source: graylog_search_token
+        target: graylog_search_token
+      - source: gelf_ingest_token
+        target: gelf_ingest_token
+    depends_on:
+      metatube2-postgres:
+        condition: service_healthy
+      provider-bridge:
+        condition: service_started
+    networks:
+      metatube_internal:
+      br0:
+        ipv4_address: 192.168.10.167
+
+  actor-resolver:
+    image: kinlshum/jav-actor-resolver:local
+    build:
+      context: ./actor-resolver
+    container_name: jav-actor-resolver
+    restart: unless-stopped
+    environment:
+      METATUBE_URL: http://metatube:8080
+      PROVIDER_BRIDGE_URL: http://provider-bridge:9210
+      CACHE_FILE: /data/cache.json
+      OVERRIDES_FILE: /data/overrides.json
+      FLARE_URL: http://flaresolverr:8191/v1
+      CACHE_TTL: "604800"
+      SOURCE_ORDER: AV-LEAGUE,XsList,JavLibrary,Minnano-AV,JAVDatabase,Babepedia,Gfriends
+    volumes:
+      - /mnt/user/appdata/metatube/actor-resolver:/data
+      - ./actor-resolver/overrides.json:/data/overrides.json:ro
+    ports:
+      - "9211:9211"
+    depends_on:
+      - metatube
+      - flaresolverr
+    networks:
+      - metatube_internal
+
 networks:
   metatube_internal:
     name: metatube_internal
@@ -150,6 +281,8 @@ networks:
 #                                   by the server-side search adapter
 #   ./secrets/gelf_ingest_token     GELF ingestion token sent as X-Graylog-Token
 secrets:
+  bridge_token:
+    file: ./secrets/provider_bridge_token
   graylog_search_token:
     file: ./secrets/graylog_search_token
   gelf_ingest_token:

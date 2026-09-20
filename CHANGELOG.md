@@ -5,15 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
-- Implemented the server half of selective JAVDB lookup. Movie searches now
-  accept a validated, comma-separated `exclude` provider list; all-provider
-  fan-out skips those providers, while explicit `provider=JavDB` lookups remain
-  available. Requests without `exclude` retain the previous behavior.
-- Prepared the Emby plugin client change that defaults broad movie searches to
-  `exclude=JavDB` while preserving exact refreshes for items that already have
-  a JAVDB provider ID. The plugin source currently lives outside this Git root,
-  so it must be versioned, built, and deployed before the production behavior
-  can be called complete.
+- Added a dedicated `metatube2` Emby service at `192.168.10.167:8080`, backed
+  by its own PostgreSQL data and configuration/trace volume. The existing
+  `.166` service remains available to JAV Master bulk workflows.
+
 - Fixed trace attribution so generic `python-httpx`/`python-urllib` callers are
   recorded as `python-client`, not falsely presented as Windmill. Real clients
   should send `X-MetaTube-Client` for an authoritative name.
