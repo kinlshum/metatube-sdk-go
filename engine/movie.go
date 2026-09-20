@@ -274,6 +274,38 @@ func (e *Engine) SearchMovieOrderedContext(ctx context.Context, keyword string, 
 	return nil, mt.ErrInfoNotFound
 }
 
+// SearchMoviePolicyContext searches every provider enabled in the configured
+// scan policy, preserving that order. It is used by manual Identify so the
+// candidate list cannot reintroduce providers excluded from the policy.
+func (e *Engine) SearchMoviePolicyContext(ctx context.Context, keyword string, fallback bool) ([]*model.MovieSearchResult, error) {
+	policy := e.MovieSearchPolicy()
+	if !policy.Enabled {
+		return e.SearchMovieAllContext(ctx, keyword, fallback)
+	}
+	var results []*model.MovieSearchResult
+	var lastErr error
+	for _, name := range policy.Providers {
+		items, err := e.SearchMovieContext(ctx, keyword, name, false)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		results = append(results, items...)
+	}
+	if len(results) > 0 {
+		return results, nil
+	}
+	if fallback {
+		if items, err := e.searchMovieFromDB(ctx, keyword, nil, true); err == nil && len(items) > 0 {
+			return items, nil
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, mt.ErrInfoNotFound
+}
+
 func (e *Engine) getMovieInfoFromDB(ctx context.Context, provider mt.MovieProvider, id string) (*model.MovieInfo, error) {
 	info := &model.MovieInfo{}
 	err := e.db. // Exact match here.

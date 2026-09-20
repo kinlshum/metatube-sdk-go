@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Made manual Emby Identify use the configured movie search policy when
+  ordered scanning is enabled, so excluded providers such as JAVDB and
+  JAVLibrary no longer appear in Identify results.
+
 - Merged automatic scan provider order into the Provider throttling/status
   table. Each provider now shows health, scan inclusion, order, concurrency,
   delay, and policy in one settings view, saved by one button.

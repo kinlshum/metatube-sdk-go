@@ -62,6 +62,8 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 				results, err = app.GetMovieInfoByProviderURLContext(ctx, query.Q, true /* always lazy */)
 			} else if searchAll && query.Strategy == "ordered" {
 				results, err = app.SearchMovieOrderedContext(ctx, query.Q, query.Fallback)
+			} else if searchAll && query.Strategy == "policy" {
+				results, err = app.SearchMoviePolicyContext(ctx, query.Q, query.Fallback)
 			} else if searchAll {
 				results, err = app.SearchMovieAllContext(ctx, query.Q, query.Fallback)
 			} else {
