@@ -7,7 +7,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 - Fixed the ordered automatic-scan regression that searched complete media
   filenames such as `HODV-21704-un_1080p_2445_hevc`. The Emby plugin now
-  extracts `HODV-21704` before querying the configured providers.
+  extracts `HODV-21704` before querying the configured providers. Catalog
+  parsing follows the established `sf-2.bash` forms, including `EBOD-001`,
+  `EBOD001`, studio-prefixed compact names, FC2/FC2-PPV, Caribbean date codes,
+  HEYDOUGA, KIN8, alphanumeric series, and suffixed media filenames.
 
 - Fixed Emby manual Identify metadata application for provider IDs containing
   colons (for example `AVBASE:hmp:HODV-22044`). The plugin now removes its
