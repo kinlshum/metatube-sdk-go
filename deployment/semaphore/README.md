@@ -48,3 +48,7 @@ Configured on the Unraid Semaphore server (`192.168.10.150`) on 2026-09-20:
 - Semaphore task `1` completed successfully in Ansible check mode, verifying
   repository checkout, inventory resolution, encrypted-key SSH access, and
   playbook wiring without restarting MetaTube2.
+- Semaphore task `2` passed the same check-mode validation for MetaTube1, and
+  task `4` successfully upgraded MetaTube1 on 2026-09-20. The resulting image
+  was `sha256:d4b2fa2068bbcbfa9964a9ca8742ace3366e9d42d3660dfd4e6a173b00d75eb3`;
+  the rollback tag is recorded in `docs/DEPLOYMENT_LOG.md`.
