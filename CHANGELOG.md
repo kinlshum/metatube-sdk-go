@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Merged automatic scan provider order into the Provider throttling/status
+  table. Each provider now shows health, scan inclusion, order, concurrency,
+  delay, and policy in one settings view, saved by one button.
+
 - Replaced the trace-table Newer/Older labels with compact left/right arrow
   pagination and a count such as `‹ 100 of 118 ›` in both synchronized toolbars.
 
