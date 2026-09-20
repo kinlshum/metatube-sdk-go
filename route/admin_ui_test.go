@@ -44,6 +44,7 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		`id="traceVideoDeleteSelected"`, `id="traceActorDeleteSelected"`,
 		`id="traceVideoPrev"`, `id="traceVideoNext"`, `id="traceVideoPager"`,
 		`id="traceActorPrev"`, `id="traceActorNext"`, `id="traceActorPager"`,
+		`id="traceVideoSize"`, `id="traceActorSize"`,
 		`id="traceVideoRows"`, `id="traceActorRows"`,
 		`id="traceVideoDrawer"`, `id="traceActorDrawer"`,
 		`id="traceVideoDrawerAnchor"`, `id="traceActorDrawerAnchor"`,
@@ -61,6 +62,8 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 	assert.Contains(t, body, "event.ctrlKey||event.metaKey||event.shiftKey",
 		"Ctrl, Command, and Shift row selection must be wired")
 	assert.Contains(t, body, "trace-marked", "selected rows must have a visible selection state")
+	assert.Contains(t, body, "state.limit=Number(event.target.value)",
+		"changing rows per page must update the trace query limit")
 	assert.Contains(t, body, "field-changes", "enrichment field changes must be rendered")
 	assert.Contains(t, body, "ETATUBE_ADMIN_TOKEN", "a missing admin token must produce a clear hint")
 

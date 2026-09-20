@@ -5,6 +5,9 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Added selectable 100, 200, 300, 400, 500, and 1000-row page sizes to both
+  enrichment trace tabs; changing the size returns to the newest page.
+
 - Made enrichment-trace checkboxes more visible and added Ctrl/Cmd-click
   individual row selection plus Shift-click range selection. Ordinary row
   clicks continue to expand trace details.

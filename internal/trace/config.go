@@ -18,7 +18,7 @@ const (
 	DefaultPruneInterval   = 10 * time.Minute
 	MinPruneInterval       = time.Minute
 
-	MaxFilterLimit     = 200
+	MaxFilterLimit     = 1000
 	DefaultFilterLimit = 50
 
 	// DefaultMaxPayloadBytes bounds a single ingest request body.
