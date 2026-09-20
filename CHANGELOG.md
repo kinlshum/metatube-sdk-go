@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Added a Semaphore deployment playbook for the isolated Emby `metatube2`
+  service with preserved-container checks, live endpoint verification, and
+  automatic image rollback on post-deploy failure.
+
 - Made every MetaTube Admin tab fluid-width so cards and tables automatically use the available browser width while retaining responsive side gutters.
 
 - Added a per-provider `Test` button beside each SETTINGS health indicator.

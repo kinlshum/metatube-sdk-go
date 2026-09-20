@@ -1,0 +1,205 @@
+---
+- name: Deploy the Emby-only MetaTube2 service
+  hosts: metatube2_hosts
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    metatube_stack_dir: /mnt/cache_nvme_apps/appdata/metatube-stack
+    metatube2_service: metatube2
+    metatube2_container: metatube2
+    metatube2_image: kinlshum/metatube-server-providers:emby
+    metatube2_admin_url: http://192.168.10.167:8080/admin
+    metatube2_providers_url: http://192.168.10.167:8080/v1/providers
+    metatube2_preserved_containers:
+      - metatube
+      - metatube2-postgres
+      - metatube2-provider-bridge
+      - metatube2-flaresolverr
+
+  tasks:
+    - name: Check the deployed compose file
+      ansible.builtin.stat:
+        path: "{{ metatube_stack_dir }}/compose.yaml"
+      register: metatube_compose_file
+
+    - name: Require the expected Kraken stack directory
+      ansible.builtin.assert:
+        that:
+          - metatube_compose_file.stat.exists
+          - metatube_compose_file.stat.isreg
+        fail_msg: >-
+          Refusing to deploy: {{ metatube_stack_dir }}/compose.yaml is missing.
+
+    - name: Read compose service names
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - config
+          - --services
+        chdir: "{{ metatube_stack_dir }}"
+      register: metatube_compose_services
+      changed_when: false
+
+    - name: Require the isolated MetaTube2 service
+      ansible.builtin.assert:
+        that:
+          - metatube2_service in metatube_compose_services.stdout_lines
+        fail_msg: >-
+          Refusing to deploy: compose does not define {{ metatube2_service }}.
+
+    - name: Snapshot containers that must not restart
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - "{{ item }}"
+      loop: "{{ metatube2_preserved_containers }}"
+      register: metatube_preserved_before
+      changed_when: false
+
+    - name: Generate an immutable rollback tag
+      ansible.builtin.set_fact:
+        metatube2_rollback_image: >-
+          kinlshum/metatube-server-providers:emby-rollback-semaphore-{{ lookup('pipe', 'date -u +%Y%m%dT%H%M%SZ') }}
+
+    - name: Tag the current MetaTube2 image for rollback
+      ansible.builtin.command:
+        argv:
+          - docker
+          - tag
+          - "{{ metatube2_image }}"
+          - "{{ metatube2_rollback_image }}"
+      changed_when: true
+
+    - name: Build only MetaTube2 from the configured Git branch
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - build
+          - --pull
+          - "{{ metatube2_service }}"
+        chdir: "{{ metatube_stack_dir }}"
+      changed_when: true
+
+    - name: Recreate and verify only MetaTube2
+      block:
+        - name: Recreate MetaTube2 without dependencies
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - up
+              - -d
+              - --no-deps
+              - --force-recreate
+              - "{{ metatube2_service }}"
+            chdir: "{{ metatube_stack_dir }}"
+          changed_when: true
+
+        - name: Wait for the MetaTube2 Admin page
+          ansible.builtin.uri:
+            url: "{{ metatube2_admin_url }}"
+            return_content: true
+            status_code: 200
+          register: metatube2_admin
+          retries: 12
+          delay: 5
+          until:
+            - metatube2_admin.status == 200
+            - "'MetaTube Admin' in metatube2_admin.content"
+
+        - name: Verify the MetaTube2 provider API
+          ansible.builtin.uri:
+            url: "{{ metatube2_providers_url }}"
+            return_content: true
+            status_code: 200
+          register: metatube2_providers
+          retries: 6
+          delay: 5
+          until: metatube2_providers.status == 200
+
+        - name: Read preserved containers after deployment
+          ansible.builtin.command:
+            argv:
+              - docker
+              - inspect
+              - "{{ item.item }}"
+          loop: "{{ metatube_preserved_before.results }}"
+          register: metatube_preserved_after
+          changed_when: false
+
+        - name: Confirm no preserved container was recreated or restarted
+          ansible.builtin.assert:
+            that:
+              - >-
+                ((item.0.stdout | from_json)[0].Id ==
+                 (item.1.stdout | from_json)[0].Id)
+              - >-
+                ((item.0.stdout | from_json)[0].State.StartedAt ==
+                 (item.1.stdout | from_json)[0].State.StartedAt)
+            fail_msg: >-
+              Safety check failed: {{ item.0.item }} changed during the
+              MetaTube2-only deployment.
+          loop: >-
+            {{ metatube_preserved_before.results |
+               zip(metatube_preserved_after.results) | list }}
+
+        - name: Read the deployed MetaTube2 container
+          ansible.builtin.command:
+            argv:
+              - docker
+              - inspect
+              - "{{ metatube2_container }}"
+          register: metatube2_inspect
+          changed_when: false
+
+        - name: Report the deployed image and rollback tag
+          ansible.builtin.debug:
+            msg:
+              image_id: "{{ (metatube2_inspect.stdout | from_json)[0].Image }}"
+              started_at: "{{ (metatube2_inspect.stdout | from_json)[0].State.StartedAt }}"
+              rollback_image: "{{ metatube2_rollback_image }}"
+
+      rescue:
+        - name: Restore the previous image tag
+          ansible.builtin.command:
+            argv:
+              - docker
+              - tag
+              - "{{ metatube2_rollback_image }}"
+              - "{{ metatube2_image }}"
+          changed_when: true
+
+        - name: Recreate MetaTube2 from the rollback image
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - up
+              - -d
+              - --no-deps
+              - --force-recreate
+              - "{{ metatube2_service }}"
+            chdir: "{{ metatube_stack_dir }}"
+          changed_when: true
+
+        - name: Wait for the restored MetaTube2 Admin page
+          ansible.builtin.uri:
+            url: "{{ metatube2_admin_url }}"
+            status_code: 200
+          register: metatube2_rollback_admin
+          retries: 12
+          delay: 5
+          until: metatube2_rollback_admin.status == 200
+
+        - name: Stop after the automatic rollback
+          ansible.builtin.fail:
+            msg: >-
+              MetaTube2 verification failed. The previous image was restored
+              from {{ metatube2_rollback_image }}; inspect the earlier task
+              output before retrying.
+
