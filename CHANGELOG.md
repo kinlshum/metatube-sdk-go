@@ -5,6 +5,13 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Still specified and pending: real rolling five-minute provider statistics
+  beside the SETTINGS throttle controls (`provider_windows.five_minutes`).
+- Specified lookup-driven provider health, fallback/degradation semantics,
+  observation provenance, and bounded startup/manual health checks.
+
+## custom-2026.09.19.4 — 2026-09-19
+
 - Added an Admin SETTINGS policy for automatic movie-scan provider selection:
   enable/disable ordered lookup, include or exclude providers, and change their
   order without rebuilding the server. Ordered scans query sequentially and
@@ -18,11 +25,6 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 - Fixed trace attribution so generic `python-httpx`/`python-urllib` callers are
   recorded as `python-client`, not falsely presented as Windmill. Real clients
   should send `X-MetaTube-Client` for an authoritative name.
-
-- Still specified and pending: real rolling five-minute provider statistics
-  beside the SETTINGS throttle controls (`provider_windows.five_minutes`).
-- Specified lookup-driven provider health, fallback/degradation semantics,
-  observation provenance, and bounded startup/manual health checks.
 
 ## custom-2026.09.19.2 — 2026-09-19
 

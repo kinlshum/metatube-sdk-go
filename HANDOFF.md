@@ -14,7 +14,7 @@ for every shipped build.
 
 Updated: 2026-09-19
 
-## Automatic scan provider policy (implemented, pending deployment)
+## Automatic scan provider policy (implemented and deployed)
 
 The SETTINGS page now manages a persistent automatic movie-scan policy stored
 at `/config/movie-search-policy.json` (override with
@@ -41,6 +41,13 @@ Relevant code: `engine/search_policy.go`, `engine/movie.go`,
 `route/search.go`, `route/admin.go`, and `route/admin.html`. Companion plugin:
 `Jellyfin.Plugin.MetaTube/ApiClient.cs` and
 `Jellyfin.Plugin.MetaTube/Providers/MovieProvider.cs` in the Homelab repository.
+
+Deployed as `custom-2026.09.19.4` on the dedicated Emby `metatube2` service.
+The initial active order is AVBASE, JavBus, JAV321, then the remaining selected
+providers; JAVDB is excluded. A real ordered `GAD-004` test returned AVBASE and
+did not invoke later providers. Emby loaded companion plugin version
+`2026.920.154.0`. The original `.166` JAV Master MetaTube service was not
+recreated.
 
 ## Next coding handoff for DeepSeek/Cline
 
