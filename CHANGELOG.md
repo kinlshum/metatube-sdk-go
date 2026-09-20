@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Fixed Emby manual Identify metadata application for provider IDs containing
+  colons (for example `AVBASE:hmp:HODV-22044`). The plugin now removes its
+  trailing `::True` selection flag without treating it as part of the movie ID.
+
 - Made manual Emby Identify use the configured movie search policy when
   ordered scanning is enabled, so excluded providers such as JAVDB and
   JAVLibrary no longer appear in Identify results.
