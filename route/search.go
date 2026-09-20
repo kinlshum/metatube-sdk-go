@@ -3,6 +3,7 @@ package route
 import (
 	"net/http"
 	pkgurl "net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,6 +23,25 @@ type searchQuery struct {
 	Q        string `form:"q" binding:"required"`
 	Provider string `form:"provider"`
 	Fallback bool   `form:"fallback"`
+	Exclude  string `form:"exclude"`
+}
+
+func splitProviderNames(raw string) []string {
+	seen := make(map[string]struct{})
+	values := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		name := strings.TrimSpace(part)
+		key := strings.ToLower(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		values = append(values, name)
+	}
+	return values
 }
 
 func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
@@ -41,6 +61,22 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 
 		// if provider is not specified, search with all providers.
 		searchAll := query.Provider == ""
+		excluded := splitProviderNames(query.Exclude)
+		if typ == movieSearchType {
+			for _, name := range excluded {
+				if !app.IsMovieProvider(name) {
+					abortWithStatusMessage(c, http.StatusBadRequest, "unknown excluded movie provider: "+name)
+					return
+				}
+				if !searchAll && strings.EqualFold(query.Provider, name) {
+					abortWithStatusMessage(c, http.StatusBadRequest, "provider cannot also be excluded: "+name)
+					return
+				}
+			}
+		} else if len(excluded) > 0 {
+			abortWithStatusMessage(c, http.StatusBadRequest, "provider exclusion is supported only for movie searches")
+			return
+		}
 
 		var (
 			results any
@@ -60,7 +96,7 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 			if isValidURL {
 				results, err = app.GetMovieInfoByProviderURLContext(ctx, query.Q, true /* always lazy */)
 			} else if searchAll {
-				results, err = app.SearchMovieAllContext(ctx, query.Q, query.Fallback)
+				results, err = app.SearchMovieAllContextExcluding(ctx, query.Q, query.Fallback, excluded)
 			} else {
 				results, err = app.SearchMovieContext(ctx, query.Q, query.Provider, query.Fallback)
 			}

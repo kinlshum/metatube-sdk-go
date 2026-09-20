@@ -5,9 +5,15 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
-- Approved a selective JAVDB contract: automatic Emby scans and normal
-  Identify exclude JAVDB by default, while targeted manual lookup and optional
-  bounded fallback remain available without patching Emby Web.
+- Implemented the server half of selective JAVDB lookup. Movie searches now
+  accept a validated, comma-separated `exclude` provider list; all-provider
+  fan-out skips those providers, while explicit `provider=JavDB` lookups remain
+  available. Requests without `exclude` retain the previous behavior.
+- Prepared the Emby plugin client change that defaults broad movie searches to
+  `exclude=JavDB` while preserving exact refreshes for items that already have
+  a JAVDB provider ID. The plugin source currently lives outside this Git root,
+  so it must be versioned, built, and deployed before the production behavior
+  can be called complete.
 
 - Still specified and pending: real rolling five-minute provider statistics
   beside the SETTINGS throttle controls (`provider_windows.five_minutes`).

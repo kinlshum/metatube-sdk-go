@@ -124,7 +124,7 @@ func (e *Engine) SearchMovieContext(ctx context.Context, keyword, name string, f
 	return e.searchMovie(ctx, keyword, provider, fallback)
 }
 
-func (e *Engine) searchMovieAll(ctx context.Context, keyword string) (results []*model.MovieSearchResult, err error) {
+func (e *Engine) searchMovieAll(ctx context.Context, keyword string, excluded map[string]struct{}) (results []*model.MovieSearchResult, err error) {
 	type response struct {
 		Results   []*model.MovieSearchResult
 		Error     error
@@ -136,6 +136,9 @@ func (e *Engine) searchMovieAll(ctx context.Context, keyword string) (results []
 
 	var wg sync.WaitGroup
 	for _, provider := range e.movieProviders.Iterator() {
+		if _, skip := excluded[throttleKey(provider.Name())]; skip {
+			continue
+		}
 		wg.Add(1)
 		// Goroutine started time.
 		startTime := time.Now()
@@ -190,8 +193,20 @@ func (e *Engine) SearchMovieAll(keyword string, fallback bool) ([]*model.MovieSe
 // SearchMovieAllContext searches all providers while recording each provider
 // attempt, the database fallback and the selected result against ctx.
 func (e *Engine) SearchMovieAllContext(ctx context.Context, keyword string, fallback bool) (results []*model.MovieSearchResult, err error) {
+	return e.SearchMovieAllContextExcluding(ctx, keyword, fallback, nil)
+}
+
+// SearchMovieAllContextExcluding searches all movie providers except the
+// explicitly excluded names. Provider names are matched case-insensitively.
+// This allows latency-sensitive clients such as automatic Emby scans to omit
+// protected slow providers without changing targeted provider lookups.
+func (e *Engine) SearchMovieAllContextExcluding(ctx context.Context, keyword string, fallback bool, exclude []string) (results []*model.MovieSearchResult, err error) {
 	if keyword = number.Trim(keyword); keyword == "" {
 		return nil, mt.ErrInvalidKeyword
+	}
+	excluded := make(map[string]struct{}, len(exclude))
+	for _, name := range exclude {
+		excluded[throttleKey(name)] = struct{}{}
 	}
 
 	defer func() {
@@ -241,7 +256,7 @@ func (e *Engine) SearchMovieAllContext(ctx context.Context, keyword string, fall
 		}()
 	}
 
-	results, err = e.searchMovieAll(ctx, keyword)
+	results, err = e.searchMovieAll(ctx, keyword, excluded)
 	return
 }
 

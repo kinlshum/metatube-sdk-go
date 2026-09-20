@@ -179,6 +179,22 @@ health JSON fields.
 
 ## D. Selective JAVDB policy for Emby and other clients
 
+### Implementation checkpoint — 2026-09-19
+
+- [x] Server query contract: comma-separated `exclude` on movie search.
+- [x] Case-insensitive validation, de-duplication, unknown-provider rejection,
+      and explicit-provider conflict rejection.
+- [x] All-provider engine fan-out skips excluded providers without changing
+      explicit provider or exact info lookups.
+- [x] Backward compatibility for clients that omit `exclude`.
+- [x] Emby plugin source prepared to exclude JAVDB from broad searches by
+      default and preserve stored-provider exact refreshes.
+- [ ] Move/version the sibling plugin source in its proper Git repository;
+      it is currently outside the `metatube-sdk-go` Git root.
+- [ ] Build and deploy the Emby plugin, restart Emby, and capture a production
+      trace proving broad scans omit JAVDB and explicit JAVDB still works.
+- [ ] Add the supported targeted manual JAVDB UI/action; do not patch Emby Web.
+
 JAVDB must not participate in automatic Emby library scans or ordinary
 all-provider Identify searches by default. It is a slow, protected fallback,
 not a mandatory barrier before a fast exact match can be returned.
