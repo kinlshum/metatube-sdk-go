@@ -49,6 +49,12 @@ did not invoke later providers. Emby loaded companion plugin version
 `2026.920.154.0`. The original `.166` JAV Master MetaTube service was not
 recreated.
 
+MetaTube2 infrastructure isolation is defined in `deployment/compose.yaml`:
+`metatube2` uses `provider-bridge2:9210`, which uses
+`flaresolverr2:8191/v1` and its own `provider-bridge2/state` directory. Host
+diagnostic ports are 9212 for the second bridge and 8192 for the second browser
+solver. The original pair remains assigned to MetaTube1 and JAV Master.
+
 ## Next coding handoff for DeepSeek/Cline
 
 The approved implementation specification is

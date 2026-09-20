@@ -49,6 +49,19 @@ services:
     networks:
       - metatube_internal
 
+  # Dedicated browser solver for the Emby-only MetaTube2 pipeline.
+  flaresolverr2:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: metatube2-flaresolverr
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: info
+      TZ: America/New_York
+    ports:
+      - "8192:8191"
+    networks:
+      - metatube_internal
+
   provider-bridge:
     image: kinlshum/metatube-provider-bridge:local
     build:
@@ -76,6 +89,38 @@ services:
       - "9210:9210"
     depends_on:
       - flaresolverr
+    networks:
+      - metatube_internal
+
+  # Dedicated provider bridge for MetaTube2/Emby. Its state and browser
+  # sessions cannot contend with the original JAV Master pipeline.
+  provider-bridge2:
+    image: kinlshum/metatube-provider-bridge:emby
+    build:
+      context: ./provider-bridge
+    container_name: metatube2-provider-bridge
+    restart: unless-stopped
+    environment:
+      FLARE_URL: http://flaresolverr2:8191/v1
+      MDC_URL: http://192.168.10.170:9208
+      HOST_QUERY_ROOT: /host-downloads/.metatube-provider
+      MDC_QUERY_ROOT: /downloads_kraken/.metatube-provider
+      BRIDGE_TOKEN_FILE: /run/secrets/bridge_token
+      ACTOR_SUB_INI_PATH: /emby-config/metadata/temp/JAV-ACTOR-SUB.ini
+      METATUBE_CONFIG_PATH: /emby-config/plugins/configurations/MetaTube.json
+      SUBSTITUTION_STATE_PATH: /state/actor-substitutions.json
+      SUBSTITUTION_BACKUP_DIR: /state/backups
+    volumes:
+      - /mnt/user/downloads:/host-downloads
+      - /mnt/cache_nvme_apps/appdata/EmbyServer/metadata/temp:/emby-config/metadata/temp
+      - /mnt/cache_nvme_apps/appdata/EmbyServer/plugins/configurations:/emby-config/plugins/configurations
+      - ./provider-bridge2/state:/state
+    secrets:
+      - bridge_token
+    ports:
+      - "9212:9210"
+    depends_on:
+      - flaresolverr2
     networks:
       - metatube_internal
 
@@ -187,7 +232,7 @@ services:
       DSN: postgres://metatube:metatube@metatube2-postgres:5432/metatube?sslmode=disable
       DB_AUTO_MIGRATE: "1"
       DB_PREPARED_STMT: "1"
-      METATUBE_PROVIDER_BRIDGE_URL: http://provider-bridge:9210
+      METATUBE_PROVIDER_BRIDGE_URL: http://provider-bridge2:9210
       METATUBE_TRACE_ENABLED: "true"
       METATUBE_TRACE_DSN: /config/traces.db
       METATUBE_TRACE_RETENTION_DAYS: "30"
@@ -237,7 +282,7 @@ services:
     depends_on:
       metatube2-postgres:
         condition: service_healthy
-      provider-bridge:
+      provider-bridge2:
         condition: service_started
     networks:
       metatube_internal:

@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Completed MetaTube2 isolation with dedicated `provider-bridge2` and
+  `flaresolverr2` services, separate bridge state, ports, and restart lifecycle.
+  MetaTube1/JAV Master retains the original bridge and browser solver.
+
 - Still specified and pending: real rolling five-minute provider statistics
   beside the SETTINGS throttle controls (`provider_windows.five_minutes`).
 - Specified lookup-driven provider health, fallback/degradation semantics,

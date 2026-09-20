@@ -15,8 +15,10 @@ private Compose network.
 The dedicated Emby instance is available at `http://192.168.10.167:8080`
 (`metatube2`). It has its own PostgreSQL database and `/config` volume so JAV
 Master bulk enrichment cannot consume its request queue, metrics, throttles, or
-trace capacity. It reuses the provider bridge and FlareSolverr infrastructure;
-the original `.166` instance remains the JAV Master endpoint.
+trace capacity. It uses dedicated `provider-bridge2` and `flaresolverr2`
+containers with separate bridge state and browser sessions. Their diagnostic
+host ports are `9212` and `8192`. The original `.166` instance and original
+bridge/solver pair remain the JAV Master pipeline.
 
 The existing MetaTube configuration and PostgreSQL database use their current
 Kraken bind mounts and survive stack recreation.
