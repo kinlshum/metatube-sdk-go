@@ -24,6 +24,11 @@ Semaphore resources:
 - host group: `metatube2_hosts`
 - task template: `Deploy MetaTube2 (Emby only)`
 
+The same inventory also has a separate `Deploy MetaTube1 (JAV Master)` task.
+It invokes `/usr/local/sbin/deploy-metatube1`, which targets only the original
+`metatube` service at `192.168.10.166:8080` and preserves both the original
+dependencies and every MetaTube2 service.
+
 The inventory connects with a dedicated, unprivileged
 `semaphore-metatube2` account. That account can only run the root-owned
 `/usr/local/sbin/deploy-metatube2` wrapper through `sudo`; it does not receive

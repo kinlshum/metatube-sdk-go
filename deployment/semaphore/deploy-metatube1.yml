@@ -1,0 +1,20 @@
+---
+- name: Deploy the original MetaTube1 service
+  hosts: metatube2_hosts
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+
+  tasks:
+    - name: Run the fixed MetaTube1 deployment wrapper
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -n
+          - /usr/local/sbin/deploy-metatube1
+      register: metatube1_deploy
+      changed_when: true
+
+    - name: Show deployment verification and rollback details
+      ansible.builtin.debug:
+        var: metatube1_deploy.stdout_lines
