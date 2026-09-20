@@ -84,3 +84,14 @@ func getAdminStats(app *engine.Engine) gin.HandlerFunc {
 		c.JSON(http.StatusOK, stats)
 	}
 }
+
+func postProviderHealthCheck(app *engine.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		value, err := app.CheckProviderHealth(c.Param("provider"))
+		if err != nil {
+			abortWithStatusMessage(c, http.StatusNotFound, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"health": value})
+	}
+}

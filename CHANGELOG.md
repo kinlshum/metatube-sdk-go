@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Added a per-provider `Test` button beside each SETTINGS health indicator.
+  It runs an immediate ad-hoc check, updates the shared health result and
+  timestamp, and leaves the staggered hourly health-check rotation unchanged.
+
 - Fixed the ordered automatic-scan regression that searched complete media
   filenames such as `HODV-21704-un_1080p_2445_hevc`. The Emby plugin now
   extracts `HODV-21704` before querying the configured providers. Catalog

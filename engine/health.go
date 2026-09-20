@@ -60,7 +60,7 @@ func (e *Engine) providerHealthLoop() {
 	}
 }
 
-func (e *Engine) checkProviderHealth(provider mt.Provider) {
+func (e *Engine) checkProviderHealth(provider mt.Provider) ProviderHealth {
 	started := time.Now()
 	value := ProviderHealth{Provider: provider.Name(), URL: provider.URL().String()}
 	response, err := e.Fetch(value.URL, provider)
@@ -80,6 +80,23 @@ func (e *Engine) checkProviderHealth(provider mt.Provider) {
 	e.health.mu.Lock()
 	e.health.values[throttleKey(provider.Name())] = value
 	e.health.mu.Unlock()
+	return value
+}
+
+// CheckProviderHealth runs an immediate provider check and updates the same
+// cached value used by the staggered hourly monitor.
+func (e *Engine) CheckProviderHealth(name string) (ProviderHealth, error) {
+	for _, provider := range e.GetMovieProviders() {
+		if strings.EqualFold(strings.TrimSpace(name), provider.Name()) {
+			return e.checkProviderHealth(provider), nil
+		}
+	}
+	for _, provider := range e.GetActorProviders() {
+		if strings.EqualFold(strings.TrimSpace(name), provider.Name()) {
+			return e.checkProviderHealth(provider), nil
+		}
+	}
+	return ProviderHealth{}, mt.ErrProviderNotFound
 }
 
 func (e *Engine) ProviderHealth() []ProviderHealth {

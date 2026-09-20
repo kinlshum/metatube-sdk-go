@@ -90,6 +90,7 @@ func New(app *engine.Engine, v auth.Validator, options ...Option) *gin.Engine {
 	admin.GET("/api/movie-search-policy", getMovieSearchPolicy(app))
 	admin.PUT("/api/movie-search-policy", putMovieSearchPolicy(app))
 	admin.GET("/api/stats", getAdminStats(app))
+	admin.POST("/api/provider-health/:provider/check", postProviderHealthCheck(app))
 	admin.GET("/api/logs", getAdminLogs(logs))
 	admin.GET("/api/logs/search", getAdminLogSearch(logs))
 	admin.GET("/api/trace-runs/:runID", getTraceRun(app.TraceService()))
