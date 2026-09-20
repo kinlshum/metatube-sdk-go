@@ -5,6 +5,8 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+## custom-2026.09.19.5 — 2026-09-20
+
 - Completed MetaTube2 isolation with dedicated `provider-bridge2` and
   `flaresolverr2` services, separate bridge state, ports, and restart lifecycle.
   MetaTube1/JAV Master retains the original bridge and browser solver.
