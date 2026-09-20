@@ -5,6 +5,9 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Replaced the trace-table Newer/Older labels with compact left/right arrow
+  pagination and a count such as `‹ 100 of 118 ›` in both synchronized toolbars.
+
 - Unified Newer, Older, Delete selected, Refresh, Pause, Auto-follow, rows per
   page, and the page count into synchronized single-line toolbars above and
   below both enrichment trace tables.

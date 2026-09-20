@@ -86,6 +86,8 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		"both pause buttons must share the same state")
 	assert.Contains(t, body, "traceControls(kind,'Size')",
 		"both page-size selectors must share the same state")
+	assert.Contains(t, body, "trace-page-arrow", "pagination must use compact arrow buttons")
+	assert.Contains(t, body, "trace-page-count", "pagination must show the current count")
 	assert.Contains(t, body, "const previousScroll=scroll?0:drawer.scrollTop;",
 		"a live drawer refresh must preserve the reader's scroll position")
 	assert.Contains(t, body, "drawer.scrollTop=previousScroll")
