@@ -83,6 +83,8 @@ recent documentation commit.
 ## Deployment
 
 - MetaTube Admin: `http://192.168.10.166:8080/admin`
+- Dedicated Emby MetaTube Admin: `http://192.168.10.167:8080/admin`
+- Dedicated Emby HTTPS Admin: `https://metatube-admin2.madtechinc.com/admin`
 - Docker host: `root@192.168.10.170` (Kraken)
 - Stack directory on host:
   `/mnt/cache_nvme_apps/appdata/metatube-stack`
