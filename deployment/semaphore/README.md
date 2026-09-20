@@ -24,7 +24,9 @@ Semaphore resources:
 - host group: `metatube2_hosts`
 - task template: `Deploy MetaTube2 (Emby only)`
 
-The inventory uses a dedicated SSH key stored in Semaphore's encrypted key
-store. Never commit the private key, API tokens, or production `.env` values to
-this repository.
-
+The inventory connects with a dedicated, unprivileged
+`semaphore-metatube2` account. That account can only run the root-owned
+`/usr/local/sbin/deploy-metatube2` wrapper through `sudo`; it does not receive
+general root or Docker access. Semaphore stores its private key in the
+encrypted key store. Never commit the private key, API tokens, or production
+`.env` values to this repository.

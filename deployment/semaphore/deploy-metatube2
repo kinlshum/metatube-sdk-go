@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if (( $# != 0 )); then
+  echo "deploy-metatube2 does not accept arguments" >&2
+  exit 64
+fi
+
+readonly stack_dir=/mnt/cache_nvme_apps/appdata/metatube-stack
+readonly service=metatube2
+readonly container=metatube2
+readonly image=kinlshum/metatube-server-providers:emby
+readonly admin_url=http://192.168.10.167:8080/admin
+readonly providers_url=http://192.168.10.167:8080/v1/providers
+readonly lock_file=/var/lock/deploy-metatube2.lock
+readonly -a preserved_containers=(
+  metatube
+  metatube2-postgres
+  metatube2-provider-bridge
+  metatube2-flaresolverr
+)
+
+exec 9>"$lock_file"
+if ! flock -n 9; then
+  echo "A MetaTube2 deployment is already running" >&2
+  exit 75
+fi
+
+if [[ ! -f "$stack_dir/compose.yaml" ]]; then
+  echo "Refusing to deploy: $stack_dir/compose.yaml is missing" >&2
+  exit 66
+fi
+
+cd "$stack_dir"
+
+if ! docker compose config --services | grep -Fxq "$service"; then
+  echo "Refusing to deploy: compose does not define $service" >&2
+  exit 65
+fi
+
+declare -A preserved_before
+for preserved in "${preserved_containers[@]}"; do
+  preserved_before["$preserved"]=$(
+    docker inspect --format '{{.Id}}|{{.State.StartedAt}}' "$preserved"
+  )
+done
+
+readonly deployed_before=$(
+  docker inspect --format '{{.Image}}|{{.State.StartedAt}}' "$container"
+)
+readonly timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+readonly rollback_image="kinlshum/metatube-server-providers:emby-rollback-semaphore-$timestamp"
+
+docker tag "$image" "$rollback_image"
+echo "Rollback image: $rollback_image"
+
+docker compose build --pull "$service"
+
+rollback_required=0
+rollback() {
+  local exit_code=$?
+  trap - ERR
+
+  if (( rollback_required == 1 )); then
+    echo "Verification failed; restoring $rollback_image" >&2
+    docker tag "$rollback_image" "$image"
+    docker compose up -d --no-deps --force-recreate "$service"
+
+    for _ in {1..12}; do
+      if curl --fail --silent --show-error --max-time 10 "$admin_url" >/dev/null; then
+        echo "Rollback completed and the Admin endpoint is healthy" >&2
+        break
+      fi
+      sleep 5
+    done
+  fi
+
+  exit "$exit_code"
+}
+trap rollback ERR
+
+rollback_required=1
+docker compose up -d --no-deps --force-recreate "$service"
+
+admin_healthy=0
+for _ in {1..12}; do
+  if curl --fail --silent --show-error --max-time 10 "$admin_url" |
+    grep -Fq 'MetaTube Admin'; then
+    admin_healthy=1
+    break
+  fi
+  sleep 5
+done
+if (( admin_healthy != 1 )); then
+  echo "MetaTube2 Admin verification timed out" >&2
+  false
+fi
+
+providers_healthy=0
+for _ in {1..6}; do
+  if curl --fail --silent --show-error --max-time 10 "$providers_url" >/dev/null; then
+    providers_healthy=1
+    break
+  fi
+  sleep 5
+done
+if (( providers_healthy != 1 )); then
+  echo "MetaTube2 provider API verification timed out" >&2
+  false
+fi
+
+for preserved in "${preserved_containers[@]}"; do
+  preserved_after=$(
+    docker inspect --format '{{.Id}}|{{.State.StartedAt}}' "$preserved"
+  )
+  if [[ "${preserved_before[$preserved]}" != "$preserved_after" ]]; then
+    echo "Safety check failed: $preserved changed during deployment" >&2
+    false
+  fi
+done
+
+rollback_required=0
+trap - ERR
+
+readonly deployed_after=$(
+  docker inspect --format '{{.Image}}|{{.State.StartedAt}}' "$container"
+)
+
+echo "MetaTube2 deployment verified"
+echo "Previous container: $deployed_before"
+echo "Deployed container: $deployed_after"
+echo "Rollback image: $rollback_image"
+
