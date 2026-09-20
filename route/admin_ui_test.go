@@ -58,6 +58,9 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 	assert.Contains(t, body, "Show in LOGS", "traces must link back to the general log lines")
 	assert.Contains(t, body, "deleteSelectedTraces(kind)", "selected traces must support confirmed bulk deletion")
 	assert.Contains(t, body, "data-select-trace", "each trace row must expose a selection checkbox")
+	assert.Contains(t, body, "event.ctrlKey||event.metaKey||event.shiftKey",
+		"Ctrl, Command, and Shift row selection must be wired")
+	assert.Contains(t, body, "trace-marked", "selected rows must have a visible selection state")
 	assert.Contains(t, body, "field-changes", "enrichment field changes must be rendered")
 	assert.Contains(t, body, "ETATUBE_ADMIN_TOKEN", "a missing admin token must produce a clear hint")
 

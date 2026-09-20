@@ -5,6 +5,10 @@ deployment revisions for this fork and do not replace upstream MetaTube tags.
 
 ## Unreleased
 
+- Made enrichment-trace checkboxes more visible and added Ctrl/Cmd-click
+  individual row selection plus Shift-click range selection. Ordinary row
+  clicks continue to expand trace details.
+
 ## custom-2026.09.19.6 — 2026-09-20
 
 - Added row checkboxes, visible-page select-all, and confirmed bulk deletion to

@@ -88,7 +88,8 @@
     .log-section>.head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:7px 11px;background:#0e1a13}
     .log-section .empty{padding:8px 11px;color:var(--muted);font-size:12px}
     .deep-link{color:var(--green2);font-size:12px;text-decoration:none}
-    .trace-select{width:34px;text-align:center}.trace-select input{width:16px;height:16px;cursor:pointer}
+    .trace-select{width:38px;text-align:center}.trace-select input{width:18px;height:18px;cursor:pointer;accent-color:var(--green);outline:1px solid #8ca99a;outline-offset:1px;border-radius:2px}
+    tr.trace-marked>td{background:#214633}tr.trace-marked:hover>td{background:#28543d}
     .danger{background:#7d2630;border-color:#a83a47}.danger:hover:not(:disabled){background:#96313d}.danger:disabled{opacity:.45;cursor:not-allowed}
     @media(max-width:900px){.test-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){main{padding:14px}header{padding:13px 16px;flex-wrap:wrap}.tabs{width:100%;margin:0}th,td{padding:11px 9px}input[type=number]{width:75px}.test-grid{grid-template-columns:1fr}}
   </style>
@@ -202,7 +203,7 @@
   async function loadStats(){try{const r=await fetch('/admin/api/stats');if(!r.ok)throw Error(`HTTP ${r.status}`);const d=await r.json(),health=Object.fromEntries((d.provider_health||[]).map(x=>[x.provider.toLowerCase(),x])),f=d.flaresolverr||{},metrics=Object.fromEntries((d.providers||[]).map(p=>[p.provider.toLowerCase(),p])),allProviders=[...new Map([...(providers||[]).map(p=>[p.provider.toLowerCase(),p.provider]),...(d.providers||[]).map(p=>[p.provider.toLowerCase(),p.provider]),...(d.provider_health||[]).map(p=>[p.provider.toLowerCase(),p.provider])]).values()].sort((a,b)=>a.localeCompare(b));providerHealth=health;document.querySelector('#statCards').innerHTML=[[duration(d.uptime_seconds),'Uptime'],[d.requests.toLocaleString(),'Requests'],[d.active_requests,'Active'],[`${d.errors} (${d.requests?((d.errors/d.requests)*100).toFixed(1):0}%)`,'Errors'],[ms(d.average_ms),'API average'],[`${d.memory_alloc_mb.toFixed(1)} MB`,'Memory'],[d.goroutines,'Goroutines'],[d.clients.length,'Recent clients']].map(x=>`<div class="stat-card"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join('');document.querySelector('#flareStats').innerHTML=[[f.up?'UP':'DOWN',`Service ${f.version||''}`],[f.calls||0,'Solve calls'],[f.successes||0,'Successful'],[f.errors||0,'Errors'],[ms(f.average_ms),'Average solve'],[ms(f.last_ms),'Last solve'],[f.sessions||0,'Active sessions'],[f.last_at?new Date(f.last_at).toLocaleTimeString():'—','Last call']].map(x=>`<div class="stat-card"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join('');document.querySelector('#flareErrors').innerHTML=(f.recent_errors||[]).length?(f.recent_errors||[]).map(x=>`<div class="bad">${esc(x.at)} · ${esc(x.error)}</div>`).join(''):`${esc(f.message||'No FlareSolverr errors recorded.')}`;document.querySelector('#providerStats').innerHTML=allProviders.length?allProviders.map(name=>{const p=metrics[name.toLowerCase()]||{provider:name,requests:0,active:0,peak_active:0,average_ms:0,last_ms:0,last_request_at:null},h=health[p.provider.toLowerCase()],challenged=h&&([401,403,429].includes(h.status)||/forbidden|challenge/i.test(h.error||'')),state=!h?'Pending':h.up?'UP':challenged?'CHALLENGE':'DOWN',detail=!h?'First check pending':`${h.status||'ERR'} · ${ms(h.latency_ms)} · ${ago(h.checked_at)}${challenged?' · access or browser challenge; site may still be live':h.error?' · '+h.error:''}`;return `<tr><td class="provider">${esc(p.provider)}</td><td><span class="pill ${h&&!h.up?'error':''}">${state}</span><div class="note" title="${esc(detail)}">${esc(detail)}</div></td><td>${p.requests}</td><td>${p.active} / ${p.peak_active}</td><td>${p.requests?ms(p.average_ms):'—'}</td><td>${p.requests?ms(p.last_ms):'—'}</td><td>${ago(p.last_request_at)}</td></tr>`}).join(''):'<tr><td colspan="7" class="note">Provider checks begin immediately and are staggered across each hour.</td></tr>';document.querySelector('#clientStats').innerHTML=d.clients.map(c=>`<tr><td>${esc(c.ip)}</td><td>${esc(c.port||'—')}</td><td class="note" title="${esc(c.user_agent)}">${esc(c.user_agent||'Unknown')}</td><td>${c.requests}</td><td>${c.errors}</td><td>${ms(c.average_ms)}</td><td>${ago(c.last_seen_at)}<div class="note">${esc(c.last_path)} · ${c.last_status}</div></td></tr>`).join('');document.querySelector('#recentStats').innerHTML=d.recent.slice(0,30).map(x=>`<tr><td>${new Date(x.at).toLocaleTimeString()}</td><td>${esc(x.ip)}${x.port?':'+esc(x.port):''}</td><td><b>${esc(x.method)}</b> ${esc(x.path)}</td><td>${x.status}</td><td>${ms(x.latency_ms)}</td></tr>`).join('')}catch(e){document.querySelector('#statCards').innerHTML=`<div class="status error">${esc(e.message)}</div>`}}
   // --- enrichment traces: LOGS-METATUBE-VIDEO / LOGS-METATUBE-ACTOR ---
   let traceTimer=null;
-  const traceState={video:{offset:0,limit:25,total:0,rows:[],selected:new Set(),open:'',error:'',paused:false,loading:false,manual:false},actor:{offset:0,limit:25,total:0,rows:[],selected:new Set(),open:'',error:'',paused:false,loading:false,manual:false}};
+  const traceState={video:{offset:0,limit:25,total:0,rows:[],selected:new Set(),selectionAnchor:'',open:'',error:'',paused:false,loading:false,manual:false},actor:{offset:0,limit:25,total:0,rows:[],selected:new Set(),selectionAnchor:'',open:'',error:'',paused:false,loading:false,manual:false}};
   const TRACE_STATUS_META={succeeded:['ok','✔'],partial:['warn','◐'],running:['warn','◐'],queued:['idle','•'],failed:['bad','✖'],cancelled:['idle','⊘']};
   const tracePrefix=kind=>kind==='actor'?'traceActor':'traceVideo';
   const traceEl=(kind,suffix)=>document.querySelector(`#${tracePrefix(kind)}${suffix}`);
@@ -221,7 +222,7 @@
     if(state.error)return `<tr><td colspan="10" class="error">${esc(state.error)}</td></tr>`;
     if(!state.rows.length)return `<tr><td colspan="10" class="note">No ${kind} traces match these filters yet. New traces appear as clients start work.</td></tr>`;
     return state.rows.map(trace=>{const errors=trace.error_count?`<span class="badge bad" title="${esc(trace.error_message||'errors recorded')}">${trace.error_count} err</span>`:'';
-      return `<tr data-trace="${esc(trace.trace_id)}">
+      return `<tr data-trace="${esc(trace.trace_id)}" class="${state.selected.has(trace.trace_id)?'trace-marked':''}">
         <td class="trace-select"><input type="checkbox" data-select-trace="${esc(trace.trace_id)}" aria-label="Select trace ${esc(trace.query||trace.trace_id)}" ${state.selected.has(trace.trace_id)?'checked':''}></td>
         <td class="note">${new Date(trace.started_at).toLocaleString()}</td>
         <td><b>${esc(trace.query||'—')}</b><div class="note mono">${esc(trace.trace_id.slice(0,18))}</div></td>
@@ -241,7 +242,13 @@
     const detail=document.createElement('tr');detail.className='trace-detail-row';detail.dataset.detailFor=row.dataset.trace;
     const cell=document.createElement('td');cell.colSpan=10;cell.appendChild(drawer);detail.appendChild(cell);row.after(detail);row.classList.add('trace-selected')}
   function updateTraceSelection(kind){const state=traceState[kind],visible=state.rows.map(row=>row.trace_id),selectedVisible=visible.filter(id=>state.selected.has(id)).length,all=visible.length>0&&selectedVisible===visible.length,selectAll=traceEl(kind,'SelectAll'),button=traceEl(kind,'DeleteSelected');
-    selectAll.checked=all;selectAll.indeterminate=selectedVisible>0&&!all;button.disabled=state.selected.size===0;button.textContent=state.selected.size?`Delete selected (${state.selected.size})`:'Delete selected'}
+    selectAll.checked=all;selectAll.indeterminate=selectedVisible>0&&!all;button.disabled=state.selected.size===0;button.textContent=state.selected.size?`Delete selected (${state.selected.size})`:'Delete selected';
+    traceEl(kind,'Rows').querySelectorAll('tr[data-trace]').forEach(row=>row.classList.toggle('trace-marked',state.selected.has(row.dataset.trace)))}
+  function selectTraceRow(kind,id,{toggle=false,range=false}={}){const state=traceState[kind],visible=state.rows.map(row=>row.trace_id);
+    if(range&&state.selectionAnchor&&visible.includes(state.selectionAnchor)){const start=visible.indexOf(state.selectionAnchor),end=visible.indexOf(id),from=Math.min(start,end),to=Math.max(start,end);for(const traceId of visible.slice(from,to+1))state.selected.add(traceId)}
+    else if(toggle){if(state.selected.has(id))state.selected.delete(id);else state.selected.add(id);state.selectionAnchor=id}
+    else{state.selected.add(id);state.selectionAnchor=id}
+    updateTraceSelection(kind)}
   function drawTraces(kind){const state=traceState[kind];
     resetTraceDrawerPlacement(kind);
     traceEl(kind,'Rows').innerHTML=traceRowsHtml(kind);
@@ -454,7 +461,8 @@
     // Turning auto-follow on jumps straight back to the newest page and refreshes
     // the open drawer; turning it off leaves everything where it is.
     traceEl(kind,'Follow').addEventListener('change',()=>{const state=traceState[kind];if(traceEl(kind,'Follow').checked){state.offset=0;state.manual=true;refreshTraces(kind)}});
-    traceEl(kind,'Rows').addEventListener('click',event=>{const checkbox=event.target.closest('[data-select-trace]');if(checkbox){const state=traceState[kind],id=checkbox.dataset.selectTrace;if(checkbox.checked)state.selected.add(id);else state.selected.delete(id);updateTraceSelection(kind);return}const row=event.target.closest('tr[data-trace]');if(!row)return;
+    traceEl(kind,'Rows').addEventListener('click',event=>{const checkbox=event.target.closest('[data-select-trace]');if(checkbox){selectTraceRow(kind,checkbox.dataset.selectTrace,{toggle:!event.shiftKey,range:event.shiftKey});return}const row=event.target.closest('tr[data-trace]');if(!row)return;
+      if(event.ctrlKey||event.metaKey||event.shiftKey){selectTraceRow(kind,row.dataset.trace,{toggle:event.ctrlKey||event.metaKey,range:event.shiftKey});return}
       if(traceState[kind].open===row.dataset.trace){closeTraceDrawer(kind);return}
       openTrace(kind,row.dataset.trace,true,row)});
   });
