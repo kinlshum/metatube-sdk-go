@@ -35,3 +35,5 @@ clients: `jav-master-app` (Kraken), the Emby/Jellyfin plugin in `plugin/`, and
   substitution from that database — either by generating `plugin/config/JAV-ACTOR-SUB.ini` (the
   current `jq` + Emby-restart path) or by pointing the actor-resolver service at PostgreSQL, which
   needs neither.
+- **[Actor identity and substitution flow](../docs/ACTOR_IDENTITY_SUBSTITUTION_FLOW.md)** — current
+  actor database, INI replacement, Emby plugin path, and the planned database-driven export flow.

@@ -4,6 +4,9 @@ This is the current deployment map for the MetaTube services, their Docker
 dependencies, Windmill, and the logging hosts. It describes the deployed
 Kraken/Unraid layout; it is not a second Compose file.
 
+For the actor database, substitution-table, and Emby delivery path, see
+[`ACTOR_IDENTITY_SUBSTITUTION_FLOW.md`](ACTOR_IDENTITY_SUBSTITUTION_FLOW.md).
+
 ## Deployment drawing
 
 ```mermaid
