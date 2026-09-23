@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Configurations>Debug.Emby;Release.Emby</Configurations>
+    <TargetFramework>net8.0</TargetFramework>
+    <DefineConstants>__EMBY__</DefineConstants>
+    <AssemblyName>JAV.Custom.Provider</AssemblyName>
+    <RootNamespace>JAV.Custom.Provider</RootNamespace>
+    <Version>$([System.DateTime]::UtcNow.ToString(yyyy.Mdd.Hmm.0))</Version>
+    <Description>Private JSON-backed actor metadata provider for Emby</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MediaBrowser.Server.Core" Version="4.9.1.80" />
+  </ItemGroup>
+  <Target Name="Zip" AfterTargets="PostBuildEvent" Condition="'$(Configuration)'=='Release.Emby'">
+    <ItemGroup>
+      <FilesToDelete Include="$(BaseOutputPath)Emby.JAV.Custom.Provider*.zip" />
+      <TempZipDirectory Include="$(OutputPath)output" />
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="@(TempZipDirectory)" />
+    <ZipDirectory SourceDirectory="@(TempZipDirectory)" DestinationFile="$(BaseOutputPath)Emby.JAV.Custom.Provider@v$(Version).zip" />
+    <RemoveDir Directories="@(TempZipDirectory)" />
+  </Target>
+</Project>
