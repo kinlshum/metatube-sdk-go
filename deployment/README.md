@@ -1,5 +1,9 @@
 # MetaTube all-in-one stack
 
+See [`../docs/METATUBE_STACK_ARCHITECTURE.md`](../docs/METATUBE_STACK_ARCHITECTURE.md)
+for the current server placement, Docker dependency drawing, Windmill and
+PostgreSQL topology, logging paths, and change-control rules.
+
 This Compose project deploys the custom MetaTube server, provider bridge,
 FlareSolverr, and PostgreSQL as one managed stack while keeping each service
 isolated in its own container.
