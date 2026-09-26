@@ -45,7 +45,7 @@ func (s *movieSearchPolicyStore) load() error {
 func (s *movieSearchPolicyStore) get() MovieSearchPolicy {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return MovieSearchPolicy{Enabled: s.value.Enabled, Providers: append([]string(nil), s.value.Providers...)}
+	return MovieSearchPolicy{Enabled: s.value.Enabled, Providers: append([]string{}, s.value.Providers...)}
 }
 
 func (s *movieSearchPolicyStore) update(value MovieSearchPolicy, available map[string]string) error {

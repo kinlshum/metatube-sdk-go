@@ -20,6 +20,8 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 	// The two tabs must exist with their exact names and stay separate from LOGS.
 	assert.Contains(t, body, `data-tab="traceVideo">LOGS-METATUBE-VIDEO<`)
 	assert.Contains(t, body, `data-tab="traceActor">LOGS-METATUBE-ACTOR<`)
+	assert.Contains(t, body, `id="buildVersion">Build `)
+	assert.NotContains(t, body, "__METATUBE_BUILD__")
 	assert.Contains(t, body, `data-tab="logs">LOGS<`)
 	assert.NotContains(t, body, `data-tab="traceVideo">LOGS<`)
 	assert.NotContains(t, body, `data-tab="traceActor">LOGS<`)
@@ -103,6 +105,13 @@ func TestAdminPageExposesTraceTabs(t *testing.T) {
 		"pause must stop polling until an explicit refresh")
 	assert.Contains(t, body, "${follow?' · following newest':' · page held'}",
 		"the operator must be able to see the current follow mode")
+}
+
+func TestAdminPolicyReturnsListWhenDisabled(t *testing.T) {
+	router, _ := newTraceTestRouter(t, nil)
+	recorder := doRequest(router, http.MethodGet, "/admin/api/movie-search-policy", nil, nil)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"providers":[]`)
 }
 
 // TestTracePayloadMatchesAdminExpectations guards the contract between the admin

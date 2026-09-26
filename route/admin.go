@@ -3,6 +3,7 @@ package route
 import (
 	_ "embed"
 	"encoding/json"
+	"html"
 	"net/http"
 	"os"
 	"strings"
@@ -11,13 +12,23 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/metatube-community/metatube-sdk-go/engine"
+	"github.com/metatube-community/metatube-sdk-go/internal/version"
 )
 
 //go:embed admin.html
 var adminHTML string
 
 func getAdminPage() gin.HandlerFunc {
-	return func(c *gin.Context) { c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(adminHTML)) }
+	return func(c *gin.Context) {
+		page := strings.Replace(adminHTML, "__METATUBE_BUILD__", html.EscapeString(version.BuildString()), 1)
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(page))
+	}
+}
+
+func getAdminVersion() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"version": version.Version, "commit": version.GitCommit})
+	}
 }
 
 func getProviderThrottles(app *engine.Engine) gin.HandlerFunc {

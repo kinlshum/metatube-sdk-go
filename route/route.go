@@ -85,6 +85,7 @@ func New(app *engine.Engine, v auth.Validator, options ...Option) *gin.Engine {
 	// requires that token, including the trace ingest APIs.
 	admin := r.Group("/admin", adminAuth(adminToken()))
 	admin.GET("", getAdminPage())
+	admin.GET("/api/version", getAdminVersion())
 	admin.GET("/api/provider-throttles", getProviderThrottles(app))
 	admin.PUT("/api/provider-throttles", putProviderThrottles(app))
 	admin.GET("/api/movie-search-policy", getMovieSearchPolicy(app))

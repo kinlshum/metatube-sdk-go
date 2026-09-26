@@ -127,7 +127,7 @@ services:
   metatube:
     image: kinlshum/metatube-server-providers:local
     build:
-      context: https://github.com/kinlshum/metatube-sdk-go.git#codex/mdcng-fc2cmadb-providers
+      context: https://github.com/kinlshum/homelab_metatube-sdk-go.git#codex/mdcng-fc2cmadb-providers
     container_name: metatube
     restart: unless-stopped
     environment:
