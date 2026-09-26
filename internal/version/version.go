@@ -33,8 +33,8 @@ func modVersion() string {
 
 // BuildString returns a hyphen-joined version and commit string.
 func BuildString() string {
-	if GitCommit == Unknown {
-		return Version
+	if GitCommit == Unknown || GitCommit == "" {
+		return "v" + Version
 	}
 	return fmt.Sprintf("v%s-%s", Version, GitCommit)
 }

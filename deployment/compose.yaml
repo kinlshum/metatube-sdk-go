@@ -128,6 +128,8 @@ services:
     image: kinlshum/metatube-server-providers:local
     build:
       context: https://github.com/kinlshum/homelab_metatube-sdk-go.git#codex/mdcng-fc2cmadb-providers
+      args:
+        BUILDKIT_CONTEXT_KEEP_GIT_DIR: "1"
     container_name: metatube
     restart: unless-stopped
     environment:
